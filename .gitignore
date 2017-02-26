@@ -1,3 +1,8 @@
 xml_files/
 .DS_Store
 txt_files/
+summa/
+gold_summaries/
+generated_summaries/
+bills/
+textrank-master/

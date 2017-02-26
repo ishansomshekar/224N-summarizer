@@ -8,21 +8,22 @@ Based on https://gist.github.com/voidfiles/1646117
          https://github.com/davidadamojr/TextRank
 """
 
-import io
-import itertools
-import os
+from os import listdir
+from os.path import isfile, join, getsize
+from collections import defaultdict
+from collections import Counter
+from os import getcwd
 
-import nltk
+# import nltk
 import networkx as nx
-import re
+# import re
 from summa import summarizer
+from summa import keywords
 
 
-__version__ = '0.1.0'
-__author__ = 'Unknown'
-__email__ = ''
 
 
+"""
 
 # apply syntactic filters based on POS tags
 def filter_for_tags(tagged, tags=['NN', 'JJ', 'NNP']):
@@ -52,9 +53,9 @@ def unique_everseen(iterable, key=None):
 
 
 def lDistance(firstString, secondString):
-    """Function to find the Levenshtein distance between two words/sentences -
+    Function to find the Levenshtein distance between two words/sentences -
     gotten from http://rosettacode.org/wiki/Levenshtein_distance#Python
-    """
+    
     if len(firstString) > len(secondString):
         firstString, secondString = secondString, firstString
     distances = range(len(firstString) + 1)
@@ -72,7 +73,7 @@ def lDistance(firstString, secondString):
 
 
 def buildGraph(nodes):
-    """nodes - list of hashables that represents the nodes of the graph"""
+    
     gr = nx.Graph()  # initialize an undirected graph
     gr.add_nodes_from(nodes)
     nodePairs = list(itertools.combinations(nodes, 2))
@@ -200,14 +201,75 @@ def summarize_all():
         summary = extractSentences(text)
         writeFiles(summary, keyphrases, article)
 
-with open("bills/s_109_5_is.txt") as fin:
+with open("bills/sconres_109_5_is.txt") as fin:
     text = fin.read()
     summary = extractSentences(text)
-    summaryFile = open('bills/s_109_5_is_summary.txt', 'w')#io.open('bills/bill_summary', 'w')
+
+    summaryFile = open('bills/summary_sconres_109_5_is.txt', 'w')#io.open('bills/bill_summary', 'w')    
     summaryFile.write(summary)
+    summaryFile.write("MIT implementation:")    
     summaryFile.write ('\n\n');
     summaryFile.write(summarizer.summarize(text, ratio=0.2))
-    print(summary)
+    summaryFile.write(keywords.keywords(text, words= 10))
+    # print(summary)
+"""
+
+def return_files(path):
+    return [path+f for f in listdir(path) if (isfile(join(path, f)) and not f.startswith('.'))]
+
+def get_bill_ID(file):
+    names = file.split('/')
+    ID = names[len(names)-1].split('.')[0]
+    return ID
+
+def generate_summaries(filePath, newFilePath):
+    fileNames = return_files(filePath)
+
+    count = 0
+    for file in fileNames:
+        if count % 100 == 0:
+            print "finished %d" % count
+        text = ''
+        with open(file, 'r') as f:
+            text = f.read()
+
+
+        f.close()
+
+        newFileName = get_bill_ID(file) + '_generated'
+        # print "#### text"
+        # print text
+        # print "####\n"
+        summary = summarizer.summarize(text, words = 50)
+        
+        # print "#### summary"
+        # print summary
+        # print "####\n"
+
+        newFile = open(newFilePath + newFileName + '.txt', 'w')
+        newFile.write(summary)
+        newFile.close()
+
+        count += 1
+
+
+
+
+
+
+
+def main(args):
+    curDir = getcwd()
+    txt_data_path = curDir + '/txt_files/processed/test/'
+    new_files_path = curDir + '/generated_summaries/test/'
+    xml_data_path = curDir + '/xml_files/processed/'
+    generate_summaries(txt_data_path, new_files_path)
+
+
+
+if __name__=='__main__':
+    import sys
+    main(sys.argv[1:])
 
 # if __name__ == '__main__':
 #     cli()

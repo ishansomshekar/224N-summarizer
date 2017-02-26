@@ -14,39 +14,50 @@ def return_files(path):
 def get_bill_ID(file):
     names = file.split('/')
     ID = names[len(names)-1].split('.')[0]
-    print ID
     return ID
 
 
 
 def process_file(path):
     fileList = return_files(path)
-    print fileList
     newFilePath = path + '/processed/'
 
-    body_titles = set(['A BILL',
+    body_titles = set([
+        '                                 A BILL\n',
      '                         CONCURRENT RESOLUTION\n',
-     'RESOLUTION', 
-     'JOINT RESOLUTION'])
+     '                               RESOLUTION\n', 
+     '                            JOINT RESOLUTION\n'])
 
     end_line = set(['                                 &lt;all&gt;\n'])
 
+    total = len(fileList)
+    count = 0
     for file in fileList:
+        if count % 1000 == 0:
+            print "finished %d" % count
+
         newFileName = get_bill_ID(file)
         newFile = open(newFilePath + newFileName + '.txt', 'w')
         with open(file,'r') as f:
             write = False
             switch = True
             for line in f:
+
                 if line in body_titles:
                     write = True               
                 if line in end_line:
                     write = False
-                if line == '\n':
-                    switch = not switch
+                # if line == '\n':
+                #     switch = not switch
                 if write and switch and line not in body_titles and line != '\n':
+                    line = line.strip()
+                    if line.endswith('\n'): 
+                        line = line[:-1]
+                    line += ' '
+                    line = line.replace(';', '.')
+
                     newFile.write(line)
-                
+        count += 1     
         newFile.close()
         f.close()
 
@@ -57,7 +68,6 @@ def process_file(path):
 def main(args):
     curDir = getcwd()
     txt_data_path = curDir + '/txt_files/'
-    print txt_data_path
     process_file(txt_data_path)
 
 
