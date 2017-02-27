@@ -236,7 +236,7 @@ def generate_summaries(filePath, newFilePath):
 
         f.close()
 
-        newFileName = get_bill_ID(file) + '_generated'
+        newFileName = get_bill_ID(file).rsplit('_', 1)[0] + '_generated'
         # print "#### text"
         # print text
         # print "####\n"
@@ -260,8 +260,8 @@ def generate_summaries(filePath, newFilePath):
 
 def main(args):
     curDir = getcwd()
-    txt_data_path = curDir + '/txt_files/processed/test/'
-    new_files_path = curDir + '/generated_summaries/test/'
+    txt_data_path = curDir + '/txt_files/processed/'
+    new_files_path = curDir + '/generated_summaries/'
     xml_data_path = curDir + '/xml_files/processed/'
     generate_summaries(txt_data_path, new_files_path)
 
