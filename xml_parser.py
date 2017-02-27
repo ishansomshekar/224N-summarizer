@@ -48,7 +48,9 @@ def process_xml(path, output_path):
 
         text = text.replace(';', '.')
         text = text.strip()
-        text = text.split('\n')[1]
+        text = text.splitlines()
+        text = text[1:]
+        text = ''.join(text)
         text = re.sub(r'[^\x00-\x7F]+',' ', text)
         
         newFile = open(output_path + newFileName + '_gold.txt', 'w')
