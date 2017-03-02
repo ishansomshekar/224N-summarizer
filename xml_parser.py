@@ -30,7 +30,7 @@ def process_xml(path, output_path):
     # print fileList
     newFilePath = path + 'processed/test/'
     printable = string.printable
-    emptyFilePath = output_path + 'missing_files/'
+    emptyFilePath = getcwd() + '/missing_files/'
     emptyFiles = []
     count = 0
     for file in fileList:

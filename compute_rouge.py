@@ -14,7 +14,7 @@ path_to_gen = 'generated_summaries/*.txt'
 
 with open('ROUGE_SCORES.csv', 'wb') as csvfile:
     writer = csv.writer(csvfile)
-    writer.writerow(["bill", "rouge_l", "rouge_1", "rouge_2", "rouge_3", "bleu_score"])
+    writer.writerow(["bill_type","bill_year", "bill_congress",  "rouge_l", "rouge_1", "rouge_2", "rouge_3", "bleu_score"])
     count = 0
     for filename in glob.glob(path_to_gen):
         sentence_suffix = "_generated.txt"
@@ -25,21 +25,26 @@ with open('ROUGE_SCORES.csv', 'wb') as csvfile:
         gold_file_name = file_body + "_gold.txt"
         # print gold_file_name
         if os.path.isfile(path_to_gold + gold_file_name):
-            if count % 100 == 0:
+            if count % 10 == 0:
                 print 'finished %d' % count
             # print filename
             gen_summary = open(filename, 'r').read()
+            if gen_summary != '':
 
-            gold_summary = open(path_to_gold + gold_file_name).read()
-            if gold_summary != '':
-                rouge_l_score = rs.rouge_l(gen_summary, [gold_summary], 0.5)
-                rouge_1_score = rs.rouge_n(gen_summary, [gold_summary], 1, 0.5)
-                rouge_2_score = rs.rouge_n(gen_summary, [gold_summary], 2, 0.5)
-                rouge_3_score = rs.rouge_n(gen_summary, [gold_summary], 3, 0.5)
-            
-                bleu_score = nltk.translate.bleu_score.corpus_bleu([gen_summary], [gold_summary])
-                writer.writerow([file_body, rouge_l_score, rouge_1_score, rouge_2_score, rouge_3_score, bleu_score])
-            count += 1
+                gold_summary = open(path_to_gold + gold_file_name).read()
+                # print gen_summary
+                # print "#######"
+                # print gold_summary
+                if gold_summary != '':
+                    rouge_l_score = rs.rouge_l(gen_summary, [gold_summary], 0.5)
+                    rouge_1_score = rs.rouge_n(gen_summary, [gold_summary], 1, 0.5)
+                    rouge_2_score = rs.rouge_n(gen_summary, [gold_summary], 2, 0.5)
+                    rouge_3_score = rs.rouge_n(gen_summary, [gold_summary], 3, 0.5)
+                    separate_names = file_body.split('_')
+                    # print separate_names
+                    bleu_score = nltk.translate.bleu_score.corpus_bleu([gen_summary], [gold_summary])
+                    writer.writerow([separate_names[0], separate_names[1], separate_names[2], rouge_l_score, rouge_1_score, rouge_2_score, rouge_3_score, bleu_score])
+                count += 1
 
 
         
