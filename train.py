@@ -1,7 +1,8 @@
-import EmbeddingWrapper
+from embedding_wrapper import EmbeddingWrapper
 from read_in_datafile import file_generator
+import os
 
-all_bill_directory = '/ALL_CLEAN_BILLS/'
+all_bill_directory = '/CLEANINGTEST/'
 all_summary_directory = '/ALL_GOLD_SUMMARIES/'
 BATCH_SIZE = 3
 MAX_SUMMARY_LENGTH = 90
@@ -20,19 +21,21 @@ def main():
 
     #pad the bills and summaries
     padded_batch = []
-    for bill, summary in f_generator:
-        padded_bill = [embedding_wrapper.get_value(word) for word in bill]
-        padded_summary = [embedding_wrapper.get_value(word) for word in summary]
-        padded_bill = padded_bill[:MAX_BILL_LENGTH]
-        padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
+    for bill_batch, summary_batch in f_generator:
+        for idx, bill in enumerate(bill_batch):
+            summary = summary_batch[idx]
+            padded_bill = [embedding_wrapper.get_value(word) for word in bill]
+            padded_summary = [embedding_wrapper.get_value(word) for word in summary]
+            padded_bill = padded_bill[:MAX_BILL_LENGTH]
+            padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
 
-        for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
-            padded_bill.append(embedding_wrapper.pad)
+            for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
+                padded_bill.append(embedding_wrapper.pad)
 
-        for i in xrange(0, MAX_SUMMARY_LENGTH - len(padded_summary)):
-            padded_summary.append(embedding_wrapper.pad)
+            for i in xrange(0, MAX_SUMMARY_LENGTH - len(padded_summary)):
+                padded_summary.append(embedding_wrapper.pad)
 
-        padded_batch.append((padded_bill, padded_summary))
+            padded_batch.append((padded_bill, padded_summary))
 
 
     #convert to integers
