@@ -15,12 +15,14 @@ from tqdm import *
 import numpy as np
 from os.path import join as pjoin
 
-import qa_data
+# import qa_data
 
 def return_files(path):
     return [path+f for f in listdir(path) if (not f.startswith('missing_files') and not f.startswith('.'))]
 
-
+def return_dir(path):
+    return [path+f for f in listdir(path) if (not f.startswith('.'))]
+    
 class EmbeddingWrapper(object):
     def __init__(self, bills_datapath):     
         self.bills_datapath = bills_datapath
@@ -33,7 +35,7 @@ class EmbeddingWrapper(object):
         self.file_names = []
 
 
-    def build_vocab():
+    def build_vocab(self):
         dataset_len = 0
         file_names = []
         file_directories = return_dir(self.bills_datapath)
@@ -67,13 +69,13 @@ class EmbeddingWrapper(object):
         return self.vocab
 
 
-    def process_glove():
+    def process_glove(self):
         """
         :param vocab_list: [vocab]
         :return:
         """
-        if not gfile.Exists(getcwd() + "trimmed_glove.6B.{}d.npz".format(self.glove_dim)):
-            glove_path = os.path.join(getcwd(), "glove.6B.{}d.txt".format(self.glove_dim))
+        if not gfile.Exists(os.getcwd() + "trimmed_glove.6B.{}d.npz".format(self.glove_dim)):
+            glove_path = os.path.join(os.getcwd(), "glove.6B.{}d.txt".format(self.glove_dim))
             glove = np.zeros((len(vocab_list), args.glove_dim))
             not_found = 0
             with open(glove_path, 'r') as fh:
@@ -97,8 +99,8 @@ class EmbeddingWrapper(object):
             self.embeddings = glove
 
 if __name__ == '__main__':
-    bills_datapath = getcwd() + '/ALL_CLEAN_BILLS/'
-    gold_summaries_datapath = getcwd() +'/ALL_GOLD_SUMMARIES/'
+    bills_datapath = os.getcwd() + '/ALL_CLEAN_BILLS/'
+    gold_summaries_datapath = os.getcwd() +'/ALL_GOLD_SUMMARIES/'
 
     embedding_wrapper = EmbeddingWrapper(bills_datapath)
     embedding_wrapper.build_vocab()
