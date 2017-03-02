@@ -31,9 +31,10 @@ def main():
             file_text = re.sub("--", "", file_text)
             file_text = re.sub("\([A-Za-z]\)", "", file_text)
             file_text = re.sub("[0-9]", "#", file_text)
+            file_text = re.sub("#(#|-)+", "#", file_text)
             file_text = re.sub("([A-Z]{2,})", "", file_text)
             file_text = re.sub("(\.)+", '.', file_text)
-            file_text = re.sub('([;\.,!\?\(\)])', r' \1 ', file_text)
+            file_text = re.sub('([;\.,\[\]-!\?\(\)])', r' \1 ', file_text)
 
             file_text = file_text.lower()
             file_text = re.sub("table of contents.", "", file_text)
