@@ -105,6 +105,14 @@ class EmbeddingWrapper(object):
 
             self.embeddings = glove
 
+    def get_value(self, word):
+        if word in self.vocab:
+            return self.vocab[word]
+        else:
+            return self.vocab['UNK']
+
+
+
 if __name__ == '__main__':
     bills_datapath = os.getcwd() + '/ALL_CLEAN_BILLS/'
     gold_summaries_datapath = os.getcwd() +'/ALL_GOLD_SUMMARIES/'
