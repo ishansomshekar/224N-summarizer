@@ -33,6 +33,8 @@ class EmbeddingWrapper(object):
         self.glove_dim = 50
         self.num_tokens = 0
         self.file_names = []
+        self.pad = 'PAD'
+        self.unk = 'UNK'
 
 
     def build_vocab(self):
@@ -59,11 +61,11 @@ class EmbeddingWrapper(object):
             file_count += 1
             if file_count % 1000 == 0:
             	print ("finished reading %d files" % file_count)
-        vocab['UNK'] = idx
-        reverse_vocab += ['UNK']
+        vocab[self.unk] = idx
+        reverse_vocab += [self.unk]
         idx += 1
-        vocab['PAD'] = idx
-        reverse_vocab += ['PAD']
+        vocab[self.pad] = idx
+        reverse_vocab += [self.pad]
         wordcounter += 2
 
         self.vocab = vocab
@@ -109,7 +111,7 @@ class EmbeddingWrapper(object):
         if word in self.vocab:
             return self.vocab[word]
         else:
-            return self.vocab['UNK']
+            return self.vocab[self.unk]
 
 
 

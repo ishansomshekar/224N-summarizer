@@ -3,12 +3,9 @@ import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from os import getcwd
 from os import listdir
-from collections import Counter
-import statistics
-import pandas
 import csv
 
-data_datapath = getcwd() +'/ALL_GOLD_SUMMARIES/'
+data_datapath = getcwd() +'/ALL_CLEAN_BILLS/'
 
 def return_files(path):
     return [path+f for f in listdir(path) if (not f.startswith('.') and not f.startswith('missing'))]
@@ -64,11 +61,11 @@ def main():
     # text_file_lens = sorted(text_file_lens)
     # print text_file_lens
     # print
-    median = statistics.median(text_file_lens)
-    print "median ", median
-    print
+    # median = statistics.median(text_file_lens)
+    # print "median ", median
+    # print
 
-    with open('ONLY_GOLD_SUMMARIES_WITH_BILLS.csv', 'wb') as csvfile:
+    with open('ONLY_BILLS_WITH_GOLD.csv', 'wb') as csvfile:
         writer = csv.writer(csvfile)
         for x in bill_length_and_names:
             writer.writerow(x)

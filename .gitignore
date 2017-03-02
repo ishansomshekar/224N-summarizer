@@ -7,4 +7,6 @@ generated_summaries/
 bills/
 textrank-master/
 missing_files/
+ONLY_GOLD_SUMMARIES_WITH_BILLS.csv
+ONLY_BILLS_WITH_GOLD.csv
 
