@@ -38,6 +38,7 @@ class EmbeddingWrapper(object):
 
 
     def build_vocab(self):
+        print ("building vocabulary for all files")
         dataset_len = 0
         file_names = []
         file_directories = return_dir(self.bills_datapath)
@@ -80,6 +81,7 @@ class EmbeddingWrapper(object):
         """
         save_path = os.getcwd() + "/trimmed_glove.6B.{}d.npz".format(self.glove_dim)
         if not gfile.Exists(save_path):
+            print("build glove")
             glove_path = os.path.join(os.getcwd(), "glove.6B.{}d.txt".format(self.glove_dim))
             glove = np.zeros((len(self.vocab), self.glove_dim))
             not_found = 0

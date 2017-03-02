@@ -12,8 +12,9 @@ name_to_summary = dict()
 name_to_bill = dict()
 
 #can preprocess in this function
-def file_generator(batch_size):
+def file_generator(batch_size, bill_names_file):
     count = 0
+    print "generating dictionaries for bills and summaries"
     with open(bill_file, 'rb') as csvfile:
         rows = [row for row in csv.reader(csvfile.read().splitlines())]
         for row in rows:
@@ -40,9 +41,11 @@ def file_generator(batch_size):
             #second value is the length
             name_to_summary[file_name] = (file, row[0])
 
+    print "finished generating dictionaries for bills and summaries"
+
     current_batch_summaries = []
     current_batch_bills = []
-    with open("dummy_dataset.csv", 'rb') as csvfile:
+    with open(bill_names_file, 'rb') as csvfile:
         rows = [row for row in csv.reader(csvfile.read().splitlines())]
         for row in rows:
             file_name = row[0]
@@ -57,4 +60,3 @@ def file_generator(batch_size):
                 yield current_batch_bills, current_batch_summaries
                 current_batch_bills = []
                 current_batch_summaries = []
-   
