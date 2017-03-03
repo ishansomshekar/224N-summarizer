@@ -1,15 +1,123 @@
 from embedding_wrapper import EmbeddingWrapper
 from read_in_datafile import file_generator
 import os
+from batch_generator import batch_generator
+import numpy as np
 
-unique_clean_bill_names_85 = 'bill_names_input_85.csv'
-all_bill_directory = '/ALL_CLEAN_BILLS/'
-all_summary_directory = '/ALL_GOLD_SUMMARIES/'
-BATCH_SIZE = 1000
+import tensorflow as tf
+
+unique_clean_bill_names_85 = 'test_bill_names.csv'
+all_bill_directory = '/TEST_BILLS/'
+all_summary_directory = '/TEST_GOLD_SUMMARIES/'
+BATCH_SIZE = 2
 MAX_SUMMARY_LENGTH = 100
 MAX_BILL_LENGTH = 600
 
+
+class SequencePredictor():
+    def __init__(self, num_epochs, glove_dim, embedding_wrapper):
+        self.glove_dim = glove_dim
+        self.num_epochs = num_epochs
+        self.bill_length = 600
+        self.summ_length = 100
+        self.lr = 0.05
+        self.bill_input = None
+        self.summary_input = None
+        self.embedding_wrapper = embedding_wrapper
+        self.vocab_size = embedding_wrapper.num_tokens
+        self.embedding_init = None
+
+    def create_feed_dict(self, inputs_batch, embedding_value, labels_batch=None):
+        """Creates the feed_dict for the model.
+        NOTE: You do not have to do anything here.
+        """
+        feed_dict = {
+            self.bill_input: inputs_batch,
+            # self.embedding_init : embedding_value
+            }
+        if labels_batch is not None:
+            feed_dict[self.summary_input] = labels_batch
+        return feed_dict
+
+    def fit_model(self):
+
+
+
+        ## BUILD PLACEHOLDERS
+
+        ## BUILD LOSS FUNCTION
+
+        ## BUILD OPTIMIZER
+
+        ## train batch
+
+        with tf.Graph().as_default():
+            self.bill_input = tf.placeholder(tf.float32, shape=(None, self.bill_length))
+            self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length))
+            self.embedding_init = tf.placeholder(tf.float32, shape = (self.vocab_size, self.glove_dim))
+
+            
+            #  Weights are not the weights that we train on, they are weights given to each word in the sentence
+            #  This can be changed to account for masking (set 0 weight to 0-padding) and for attention
+            weights = tf.get_variable(name = 'weights', shape = (self.summ_length), initializer=tf.constant_initializer(0))
+
+            embeddings = tf.Variable(np.load('trimmed_glove.6B.50d.npz'))
+            # data = np.load('trimmed_glove.6B.50d.npz')
+            # embedding_value = data['embeddings']
+            # print embeddings.type()
+
+            bill_embeddings = tf.nn.embedding_lookup(embeddings, self.bill_input)
+            bill_embeddings = tf.reshape(-1, self.bill_length, self.glove_dim * self.bill_length)        
+            summ_embeddings = tf.nn.embedding_lookup(embeddings, self.summary_input)
+            summ_embeddings = tf.reshape(-1, self.summ_length, self.glove_dim * self.summ_length)
+
+            cell = tf.nn.rnn_cell.LSTMCell()
+
+            dec_outputs, states = seq2seq.embedding_rnn_seq2seq(self.bill_input, self.summary_input, cell, self.vocab_size, self.vocab_size)
+
+
+            loss = seq2seq.sequence_loss(dec_outputs, self.summary_input, weights, self.vocab_size)
+            optimizer = tf.train.AdamOptimizer(self.lr)
+            train_op = optimizer.minimize(loss)
+
+
+            
+            #     # 
+            epoch_losses = []
+            with tf.Session() as sess:
+                sess.run(tf.initialize_all_variables())
+
+                for i in xrange(self.num_epochs):
+                    batch_losses = []
+                    for padded_bill, padded_summary in batch_generator(embedding_wrapper, unique_clean_bill_names_85 ,BATCH_SIZE, MAX_BILL_LENGTH, MAX_SUMMARY_LENGTH):
+                        feed = self.create_feed_dict(padded_bill, padded_summary)#, embedding_value)
+                        train, loss = sess.run([train_op, loss], feed_dict = feed)
+
+                        batch_losses.append(loss)
+                    epoch_losses.append(batch_losses)
+            return epoch_losses
+
+
+
+            ##initialize variables
+            ## loop over epochs
+            ## loop over the batches
+            # extract batch
+            # build feed dictionary
+            # loss, grad = sess.run()
+
+        # for every epoch:
+        #     for every batch:
+        #         get the batch from data
+        #         model.step / model. run
+
+        #         pass grad_norm and losses up through
+        #         every once in a while run eval on losses
+
+
 def main():
+
+
 
     bills_datapath = os.getcwd() + all_bill_directory
     gold_summaries_datapath = os.getcwd() + all_summary_directory
@@ -18,30 +126,12 @@ def main():
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
 
-    f_generator = file_generator(BATCH_SIZE, unique_clean_bill_names_85)
-
-    #pad the bills and summaries
-    print "now padding and encoding batches"
-    padded_batch = []
-    for bill_batch, summary_batch in f_generator:
-        print "batch"
-        for idx, bill in enumerate(bill_batch):
-            summary = summary_batch[idx]
-            padded_bill = [embedding_wrapper.get_value(word) for word in bill]
-            padded_summary = [embedding_wrapper.get_value(word) for word in summary]
-            padded_bill = padded_bill[:MAX_BILL_LENGTH]
-            padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
-
-            for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
-                padded_bill.append(embedding_wrapper.pad)
-
-            for i in xrange(0, MAX_SUMMARY_LENGTH - len(padded_summary)):
-                padded_summary.append(embedding_wrapper.pad)
-
-            padded_batch.append((padded_bill, padded_summary))
-    #convert to integers
-    print "finished inputting bills and summaries"
+    model = SequencePredictor(1, 50, embedding_wrapper)
+    losses = model.fit_model()
+    print losses
 
 if __name__ == "__main__":
     main()
+
+
 
