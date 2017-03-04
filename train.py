@@ -6,6 +6,7 @@ import numpy as np
 
 import tensorflow as tf
 
+
 unique_clean_bill_names_85 = 'test_bill_names.csv'
 all_bill_directory = '/TEST_BILLS/'
 all_summary_directory = '/TEST_GOLD_SUMMARIES/'
@@ -24,6 +25,7 @@ class SequencePredictor():
         self.embedding_wrapper = embedding_wrapper
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
+        self.hidden_size = 500
 
     def create_feed_dict(self, inputs_batch, embedding_value, labels_batch=None):
         """Creates the feed_dict for the model.
@@ -61,25 +63,35 @@ class SequencePredictor():
             
             #  Weights are not the weights that we train on, they are weights given to each word in the sentence
             #  This can be changed to account for masking (set 0 weight to 0-padding) and for attention
-            weights = tf.get_variable(name = 'weights', shape = (self.summ_length), initializer=tf.constant_initializer(0))
+            
 
             #embeddings = tf.Variable(np.load('trimmed_glove.6B.50d.npz'))
             data = np.load('trimmed_glove.6B.50d.npz')
-            embeddings = tf.Variable(data['glove'])
+            embeddings = tf.Variable(data['glove'], dtype = tf.float32)
             # embedding_value = data['embeddings']
             # print embeddings.type()
             print self.bill_input
             bill_embeddings = tf.nn.embedding_lookup(embeddings, self.bill_input)
-            bill_embeddings = tf.reshape(-1, self.bill_length, self.glove_dim * self.bill_length)        
+            print self.bill_length, self.glove_dim
+            bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim * self.bill_length))        
             summ_embeddings = tf.nn.embedding_lookup(embeddings, self.summary_input)
-            summ_embeddings = tf.reshape(-1, self.summ_length, self.glove_dim * self.summ_length)
+            summ_embeddings = tf.reshape(summ_embeddings, (-1, self.summ_length, self.glove_dim * self.summ_length))
 
-            cell = tf.nn.rnn_cell.LSTMCell()
+            cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            print summ_embeddings.get_shape()
+            print bill_embeddings.get_shape()
 
-            dec_outputs, states = seq2seq.embedding_rnn_seq2seq(self.bill_input, self.summary_input, cell, self.vocab_size, self.vocab_size)
+            bill_tensor_list = [bill_embeddings[:, i, :] for i in xrange(self.bill_length)]
+            summ_tensor_list = [summ_embeddings[:, i, :] for i in xrange(self.summ_length)]
 
-
-            loss = seq2seq.sequence_loss(dec_outputs, self.summary_input, weights, self.vocab_size)
+            print summ_tensor_list[0].get_shape()
+            dec_outputs, states = tf.nn.seq2seq.basic_rnn_seq2seq(bill_tensor_list, summ_tensor_list, cell)
+            # dec_outputs, states = tf.nn.seq2seq.embedding_rnn_seq2seq(bill_tensor_list, summ_tensor_list, cell, self.vocab_size, self.vocab_size, self.glove_dim)
+            print dec_outputs
+            dec_outputs = tf.pack(dec_outputs)
+            print dec_outputs
+            weights = tf.get_variable(name = 'weights', shape = (10), initializer=tf.constant_initializer(1))
+            loss = tf.nn.seq2seq.sequence_loss(dec_outputs, summ_tensor_list, weights, self.vocab_size)
             optimizer = tf.train.AdamOptimizer(self.lr)
             train_op = optimizer.minimize(loss)
 
