@@ -7,6 +7,7 @@ import os
 import re
 import tarfile
 import argparse
+import pickle
 
 from six.moves import urllib
 
@@ -37,31 +38,63 @@ class EmbeddingWrapper(object):
         self.unk = 'UNK'
 
 
+    # def build_vocab(self):
+    #     print ("building vocabulary for all files")
+    #     dataset_len = 0
+    #     file_names = []
+    #     file_directories = return_dir(self.bills_datapath)
+    #     for dir_path in file_directories:
+    #         dataset_len += len(os.listdir(dir_path))
+    #         file_names += return_files(dir_path + "/")
+    #     vocab = dict()
+    #     reverse_vocab = []
+    #     idx = 0
+    #     wordcounter = 0
+    #     file_count = 0
+    #     for file in file_names:
+    #         with open(file, 'r') as f:
+    #             words = f.read().split()
+    #             for word in words:
+    #                 wordcounter += 1
+    #                 if not word in vocab:
+    #                     vocab[word] = idx
+    #                     reverse_vocab +=[word]
+    #                     idx += 1
+    #         file_count += 1
+    #         if file_count % 1000 == 0:
+    #         	print ("finished reading %d files" % file_count)
+    #     vocab[self.unk] = idx
+    #     reverse_vocab += [self.unk]
+    #     idx += 1
+    #     vocab[self.pad] = idx
+    #     reverse_vocab += [self.pad]
+    #     wordcounter += 2
+
+    #     self.vocab = vocab
+    #     self.reverse_vocab = reverse_vocab
+    #     self.num_tokens = wordcounter
+    #     print( "finished building vocabulary of size %d for all files" %wordcounter)
+
     def build_vocab(self):
         print ("building vocabulary for all files")
         dataset_len = 0
-        file_names = []
-        file_directories = return_dir(self.bills_datapath)
-        for dir_path in file_directories:
-            dataset_len += len(os.listdir(dir_path))
-            file_names += return_files(dir_path + "/")
         vocab = dict()
         reverse_vocab = []
         idx = 0
         wordcounter = 0
         file_count = 0
-        for file in file_names:
-            with open(file, 'r') as f:
-                words = f.read().split()
+        with open(bills_datapath, 'r') as f:
+            for i, line in enumerate(f):
+                words = line.split()
                 for word in words:
                     wordcounter += 1
                     if not word in vocab:
                         vocab[word] = idx
                         reverse_vocab +=[word]
                         idx += 1
-            file_count += 1
-            if file_count % 1000 == 0:
-            	print ("finished reading %d files" % file_count)
+                if i % 1000 == 0:
+                    print ("finished reading %d bills" % i)
+
         vocab[self.unk] = idx
         reverse_vocab += [self.unk]
         idx += 1
@@ -72,6 +105,8 @@ class EmbeddingWrapper(object):
         self.vocab = vocab
         self.reverse_vocab = reverse_vocab
         self.num_tokens = wordcounter
+        print( "finished building vocabulary of size %d for all files" %wordcounter)
+
 
 
     def process_glove(self, size = 4e5):
@@ -118,11 +153,15 @@ class EmbeddingWrapper(object):
 
 
 if __name__ == '__main__':
-    bills_datapath = os.getcwd() + '/ALL_CLEAN_BILLS/'
+    bills_datapath = os.getcwd() + '/bill_data_100.txt'
     gold_summaries_datapath = os.getcwd() +'/ALL_GOLD_SUMMARIES/'
 
     embedding_wrapper = EmbeddingWrapper(bills_datapath)
     embedding_wrapper.build_vocab()
+    with open('vocab.dat', 'w') as f:
+        pickle.dump(embedding_wrapper.vocab, f)
+        f.close()
+
     print(embedding_wrapper.vocab)
     print
     print(embedding_wrapper.reverse_vocab)
