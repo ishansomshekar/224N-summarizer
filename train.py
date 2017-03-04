@@ -52,8 +52,8 @@ class SequencePredictor():
             #
             # self.bill_input = tf.placeholder(tf.float32, shape=(None, self.bill_length))
             # self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length))
-            self.bill_input = tf.placeholder(tf.float32, shape=(None, self.bill_length, self.vocab_size))
-            self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length, self.vocab_size))
+            self.bill_input = tf.placeholder(tf.int32, shape=(None, self.bill_length, self.vocab_size))
+            self.summary_input = tf.placeholder(tf.int32, shape=(None, self.summ_length, self.vocab_size))
 
 
             #self.embedding_init = tf.placeholder(tf.float32, shape = (self.vocab_size, self.glove_dim))
