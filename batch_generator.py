@@ -1,4 +1,5 @@
-# generator
+from read_in_datafile import file_generator
+from embedding_wrapper import EmbeddingWrapper
 
 def batch_generator(embedding_wrapper, bill_name_file, batch_size, MAX_BILL_LENGTH, MAX_SUMMARY_LENGTH):
 
@@ -22,7 +23,16 @@ def batch_generator(embedding_wrapper, bill_name_file, batch_size, MAX_BILL_LENG
             for i in xrange(0, MAX_SUMMARY_LENGTH - len(padded_summary)):
                 padded_summary.append(embedding_wrapper.pad)
 
-            padded_batch.append((padded_bill, padded_summary))
+            #now, change each word index into a one hot vector of size vocab size
+            padded_bill_of_one_hots = [[0 for y in range(0, embedding_wrapper.num_tokens)] for x in range(0,MAX_BILL_LENGTH)]
+            for idx, id_word_representation in enumerate(padded_bill):
+                padded_bill_of_one_hots[idx][id_word_representation] = 1
+            
+            padded_summary_of_one_hots = [[0 for y in range(0, embedding_wrapper.num_tokens)] for x in range(0,MAX_SUMMARY_LENGTH)]
+            for idx, id_word_representation in enumerate(padded_summary):
+                padded_summary_of_one_hots[idx][id_word_representation] = 1
+
+            padded_batch.append((padded_bill_of_one_hots, padded_summary_of_one_hots))
         yield padded_batch
         padded_batch = []
 
