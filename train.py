@@ -7,10 +7,11 @@ import numpy as np
 import tensorflow as tf
 
 
-unique_clean_bill_names_85 = 'test_bill_names.csv'
+bill_data_path = 'bill_data_100.txt'
+summary_data_path = 'summary_data_100.txt'
 all_bill_directory = '/TEST_BILLS/'
 all_summary_directory = '/TEST_GOLD_SUMMARIES/'
-BATCH_SIZE = 2
+BATCH_SIZE = 1
 
 
 class SequencePredictor():
@@ -52,6 +53,17 @@ class SequencePredictor():
         #might not need the graph
         with tf.Graph().as_default():
             #
+            for i in xrange(self.num_epochs):
+                    batch_losses = []
+                    for batch in batch_generator(self.embedding_wrapper, bill_data_path, summary_data_path, BATCH_SIZE, self.bill_length, self.summ_length):
+                        for padded_bill, padded_summary in batch:
+                            # print padded_bill
+                            # print padded_summary
+                            # print
+                            print
+
+                          
+
             # self.bill_input = tf.placeholder(tf.float32, shape=(None, self.bill_length))
             # self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length))
             self.bill_input = tf.placeholder(tf.int32, shape=(None, self.bill_length, self.vocab_size))
@@ -150,7 +162,7 @@ def main():
     bills_datapath = os.getcwd() + all_bill_directory
     gold_summaries_datapath = os.getcwd() + all_summary_directory
 
-    embedding_wrapper = EmbeddingWrapper(bills_datapath)
+    embedding_wrapper = EmbeddingWrapper(bill_data_path)
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
 

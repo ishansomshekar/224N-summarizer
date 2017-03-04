@@ -7,7 +7,7 @@ import os
 import re
 import tarfile
 import argparse
-import pickle
+import cPickle as pickle
 
 from six.moves import urllib
 
@@ -83,7 +83,7 @@ class EmbeddingWrapper(object):
         idx = 0
         wordcounter = 0
         file_count = 0
-        with open(bills_datapath, 'r') as f:
+        with open(self.bills_datapath, 'r') as f:
             for i, line in enumerate(f):
                 words = line.split()
                 for word in words:
@@ -108,7 +108,7 @@ class EmbeddingWrapper(object):
         print( "finished building vocabulary of size %d for all files" %wordcounter)
 
 
-
+        #gemsim.models.word2vec 
     def process_glove(self, size = 4e5):
         """
         :param vocab_list: [vocab]
@@ -137,9 +137,13 @@ class EmbeddingWrapper(object):
                     else:
                         not_found += 1
             found = size - not_found
-
+            #if the word isn't found, you word_vc = np.random.uniform(range, range, size)
             print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(self.vocab), glove_path))
+            #print type(glove)
+            #don't compress, might need a load compressed
+            #bare bones, make sure it's the type that you want and make sure it save it without compressed
             np.savez_compressed(save_path, glove=glove)
+
             print("saved trimmed glove matrix at: {}".format(save_path))
 
             self.embeddings = glove
@@ -162,9 +166,13 @@ if __name__ == '__main__':
         pickle.dump(embedding_wrapper.vocab, f)
         f.close()
 
-    print(embedding_wrapper.vocab)
+    dict_obj = pickle.load(open('vocab.dat', 'r'))
+    assert dict_obj['games'] == embedding_wrapper.vocab['games']
+    # print(dict_obj['games'])
+
+    # print(embedding_wrapper.vocab)
     print
-    print(embedding_wrapper.reverse_vocab)
+    # print(embedding_wrapper.reverse_vocab)
     print
     embedding_wrapper.process_glove()
 
