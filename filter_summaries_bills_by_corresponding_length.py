@@ -48,20 +48,39 @@ def main():
             summary_len = int(summ_adr_len[1])
             bill_len = int(bill_adr_len[1])
             bill_adr = bill_adr_len[0]
-            summ_adr summ_adr_len[0]
+            summ_adr = summ_adr_len[0]
+            bill = open(bill_adr, 'r')
+            bill_file_text = bill.read()
+            summ_file = open(summ_adr, 'r')
+            summ_file_text = summ_file.read()
+            bill.close()
+            summ_file.close()
+            # print bill_file_text
+            # print
+            # print summ_file_text            
+            find_index = bill_file_text.find(summ_file_text)
+
+            split_summ = summ_file_text.split()
+            for i in xrange(0, len(split_summ)-8):
+                val = bill_file_text.find(' '.join(split_summ[i:i+8]))
+                # print ' '.join(split_summ[i:i+8])
+                if val > 0:
+                    find_index = val
+
+            # print find_index
+
             #open the bill and summary files from bill_adr and summ_adr
             #FIND THE SUMMARY INSIDE THE BILL 
             #you can even do... trim the bill to 400 words, and then find the summary 
             #try printing out all the different start and end indices to make sure that this is still an interesting problem
             #i'd say... if we can get ~70,000
 
-
             file_count += 1
-            # if file_count % 1000 == 0:
-            #     print "finished ", file_count
+            if file_count % 1000 == 0:
+                print "finished ", file_count
 
             threshold_bill_len = MAX_THRESHOLD * bill_len    
-            if threshold_bill_len > summary_len and summary_len < 500 and bill_len < 1300 and bill_len > 0 and summary_len > 4:
+            if threshold_bill_len > summary_len and summary_len < 500 and bill_len < 1300 and bill_len > 0 and summary_len > 4 and find_index > 0:
                 data_within_bounds += 1
                 #we have approx 112,000 bills at this point. Now, run statistics to understand the median and such
                 row = [file_name, bill_adr_len[0], bill_len, summ_adr_len[0], summary_len]        
