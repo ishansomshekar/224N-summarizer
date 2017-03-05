@@ -12,7 +12,7 @@ def return_dir(path):
 
 
 def main():
-    datapaths = [getcwd() + '/ALL_GOLD_SUMMARIES/']
+    datapaths = [getcwd() + '/ALL_CLEAN_BILLS/']
     standard_file = "bills_with_gold.csv"
     bills_with_gold = set()
     names_already_seen = set()
