@@ -47,6 +47,15 @@ def main():
             summ_adr_len = name_to_summary[file_name]
             summary_len = int(summ_adr_len[1])
             bill_len = int(bill_adr_len[1])
+            bill_adr = bill_adr_len[0]
+            summ_adr summ_adr_len[0]
+            #open the bill and summary files from bill_adr and summ_adr
+            #FIND THE SUMMARY INSIDE THE BILL 
+            #you can even do... trim the bill to 400 words, and then find the summary 
+            #try printing out all the different start and end indices to make sure that this is still an interesting problem
+            #i'd say... if we can get ~70,000
+
+
             file_count += 1
             # if file_count % 1000 == 0:
             #     print "finished ", file_count
