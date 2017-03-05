@@ -76,36 +76,42 @@ class EmbeddingWrapper(object):
     #     print( "finished building vocabulary of size %d for all files" %wordcounter)
 
     def build_vocab(self):
-        print ("building vocabulary for all files")
-        dataset_len = 0
-        vocab = dict()
-        reverse_vocab = []
-        idx = 0
-        wordcounter = 0
-        file_count = 0
-        with open(self.bills_datapath, 'r') as f:
-            for i, line in enumerate(f):
-                words = line.split()
-                for word in words:
-                    wordcounter += 1
-                    if not word in vocab:
-                        vocab[word] = idx
-                        reverse_vocab +=[word]
-                        idx += 1
-                if i % 1000 == 0:
-                    print ("finished reading %d bills" % i)
+        if not gfile.Exists(os.getcwd() + '/vocab.dat'):
+            print ("building vocabulary for all files")
+            dataset_len = 0
+            vocab = dict()
+            reverse_vocab = []
+            idx = 0
+            wordcounter = 0
+            file_count = 0
+            with open(self.bills_datapath, 'r') as f:
+                for i, line in enumerate(f):
+                    words = line.split()
+                    for word in words:
+                        wordcounter += 1
+                        if not word in vocab:
+                            vocab[word] = idx
+                            reverse_vocab +=[word]
+                            idx += 1
+                    if i % 1000 == 0:
+                        print ("finished reading %d bills" % i)
 
-        vocab[self.unk] = idx
-        reverse_vocab += [self.unk]
-        idx += 1
-        vocab[self.pad] = idx
-        reverse_vocab += [self.pad]
-        wordcounter += 2
+            vocab[self.unk] = idx
+            reverse_vocab += [self.unk]
+            idx += 1
+            vocab[self.pad] = idx
+            reverse_vocab += [self.pad]
+            wordcounter += 2
 
-        self.vocab = vocab
-        self.reverse_vocab = reverse_vocab
-        self.num_tokens = wordcounter
-        print( "finished building vocabulary of size %d for all files" %wordcounter)
+            self.vocab = vocab
+            self.reverse_vocab = reverse_vocab
+            self.num_tokens = wordcounter
+            print( "finished building vocabulary of size %d for all files" %wordcounter)
+        else:
+            self.vocab = pickle.load(open('vocab.dat', 'r'))
+            self.reverse_vocab = pickle.load(open('reverse_vocab.dat', 'r'))
+            self.num_tokens = len(self.vocab)
+
 
 
         #gemsim.models.word2vec 
@@ -167,7 +173,14 @@ if __name__ == '__main__':
         f.close()
 
     dict_obj = pickle.load(open('vocab.dat', 'r'))
-    assert dict_obj['games'] == embedding_wrapper.vocab['games']
+
+    with open('reverse_vocab.dat', 'w') as f:
+        pickle.dump(embedding_wrapper.reverse_vocab, f)
+        f.close()
+
+    dict_obj = pickle.load(open('reverse_vocab.dat', 'r'))
+
+    # assert dict_obj['games'] == embedding_wrapper.vocab['games']
     # print(dict_obj['games'])
 
     # print(embedding_wrapper.vocab)

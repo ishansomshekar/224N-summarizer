@@ -10,7 +10,7 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
     padded_batch = []
     for bill_batch, summary_batch in f_generator:
         # print "batch"
-        print bill_batch
+        # print bill_batch
         #print summary_batch
         for idx, bill in enumerate(bill_batch):
             summary = summary_batch[idx]
