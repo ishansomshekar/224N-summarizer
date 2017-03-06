@@ -77,23 +77,39 @@ class SequencePredictor():
 
             dec_cell = tf.nn.rnn_cell.LSTMCell(10)
             dec_state = state
-            dec_outputs, dec_state = tf.nn.dynamic_rnn(dec_cell, outputs, dec_state)
-            # with tf.variable_scope("RNN"):
-            #     for time_step in range(self.bill_length):
-            #         if time_step > 0:
-            #             tf.get_variable_scope().reuse_variables()
-            #         o_t, h_t = cell(x[:, time_step, :], state)
-            #         o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-            #         pred = tf.matmul(o_drop_t, U) + b2
-            #         preds.append(pred)
-            #         state = h_t
-            #         ### END YOUR CODE 
-
-            dec_outputs, states = tf.seq2seq.embedding_rnn_seq2seq(self.bill_input, self.summary_input, cell, self.vocab_size, self.vocab_size)
 
 
-            loss = seq2seq.sequence_loss(dec_outputs, self.summary_input, weights, self.vocab_size)
-            optimizer = tf.train.AdamOptimizer(self.lr)
+
+            dec_outputs, enc_final_state = tf.nn.dynamic_rnn(dec_cell, outputs, dec_state)
+            input_ = dummy_starter
+            with tf.variable_scope("decoder"):
+                for i in xrange(self.summ_length+1)
+                    W_d_in = tf.get_variable("W_d_in", [input_dimensions, lstm_width], initializer=init)   # S x L
+                    b_d_in = tf.get_variable("b_d_in", [batch_size, lstm_width], initializer=init)         # B x L
+                    cell_input = tf.nn.elu(tf.matmul(input_, W_d_in) + b_d_in)                               # B x L
+                    
+                    step_output, dec_state = dec_cell(cell_input, enc_final_state)
+
+                    ## need to find a way to reformat the output into the input
+                    ## dimensions need to change from B x L to B x S
+
+
+                # for time_step in range(self.summ_length):
+                #     if time_step > 0:
+                #         tf.get_variable_scope().reuse_variables()
+                #     o_t, h_t = cell(x[:, time_step, :], state)
+                #     o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+                #     pred = tf.matmul(o_drop_t, U) + b2
+                #     preds.append(pred)
+                #     state = h_t
+
+
+            l2loss = tf.nn.l2_loss( - y)
+            loss = tf.reduce_mean(l2loss)
+
+
+            # loss = seq2seq.sequence_loss(dec_outputs, self.summary_input, weights, self.vocab_size)
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config.lr)
             train_op = optimizer.minimize(loss)
 
             epoch_losses = []
