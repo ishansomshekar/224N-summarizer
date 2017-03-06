@@ -3,6 +3,7 @@ from read_in_datafile import file_generator
 import os
 from batch_generator import batch_generator
 import numpy as np
+from encoder_decoder_cells import DecoderCell
 
 import tensorflow as tf
 
@@ -72,23 +73,26 @@ class SequencePredictor():
             preds = []
             #10 is my dummy variable for hidden size
             enc_cell = tf.nn.rnn_cell.LSTMCell(10)
-            state = tf.zeros((BATCH_SIZE, 10), tf.float32)
-            outputs, state = tf.nn.dynamic_rnn(enc_cell, bill_embeddings, state)
-
-            dec_cell = tf.nn.rnn_cell.LSTMCell(10)
-            dec_state = state
-
-
-
-            dec_outputs, enc_final_state = tf.nn.dynamic_rnn(dec_cell, outputs, dec_state)
-            input_ = dummy_starter
-            with tf.variable_scope("decoder"):
-                for i in xrange(self.summ_length+1)
-                    W_d_in = tf.get_variable("W_d_in", [input_dimensions, lstm_width], initializer=init)   # S x L
-                    b_d_in = tf.get_variable("b_d_in", [batch_size, lstm_width], initializer=init)         # B x L
-                    cell_input = tf.nn.elu(tf.matmul(input_, W_d_in) + b_d_in)                               # B x L
+            #state = tf.zeros((self.bill_length), dtype = tf.float32)
+            preds = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64)
+            #state = tf.nn.sigmoid(state)
+            #outputs, state = tf.nn.dynamic_rnn(enc_cell, bill_embeddings, initial_state = state)
+            #dec_cell = tf.nn.rnn_cell.LSTMCell(10)
+            dec_cell = DecoderCell(10)
+            #dec_state = state
+            preds = tf.pack(preds)
+            #preds = tf.transpose(preds, [1,0,2])
+            #outputs = tf.cast(outputs, tf.float32)
+            #preds = tf.cast(preds, tf.float32)
+            dec_outputs, dec_final_state = tf.nn.dynamic_rnn(dec_cell, preds)
+            #input_ = dummy_starter
+            # with tf.variable_scope("decoder"):
+            #     for i in xrange(self.summ_length+1):
+            #         W_d_in = tf.get_variable("W_d_in", [input_dimensions, lstm_width], initializer=init)   # S x L
+            #         b_d_in = tf.get_variable("b_d_in", [batch_size, lstm_width], initializer=init)         # B x L
+            #         cell_input = tf.nn.elu(tf.matmul(input_, W_d_in) + b_d_in)                               # B x L
                     
-                    step_output, dec_state = dec_cell(cell_input, enc_final_state)
+            #         step_output, dec_state = dec_cell(cell_input, enc_final_state)
 
                     ## need to find a way to reformat the output into the input
                     ## dimensions need to change from B x L to B x S
