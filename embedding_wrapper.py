@@ -25,8 +25,7 @@ def return_dir(path):
     return [path+f for f in os.listdir(path) if (not f.startswith('.'))]
     
 class EmbeddingWrapper(object):
-    def __init__(self, bills_datapath):     
-        self.bills_datapath = bills_datapath
+    def __init__(self):     
         self.vocab = None
         self.reverse_vocab = None
         self.embeddings = None
