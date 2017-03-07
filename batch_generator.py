@@ -7,7 +7,8 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
 
     #pad the bills and summaries
     print "now padding and encoding batches"
-    padded_batch = []
+    padded_bills = []
+    padded_summaries = []
     for bill_batch, summary_batch in f_generator:
         # print "batch"
         # print bill_batch
@@ -35,9 +36,11 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
             for idx, id_word_representation in enumerate(padded_summary):
                 padded_summary_of_one_hots[idx][id_word_representation] = 1
 
-            padded_batch.append((padded_bill_of_one_hots, padded_summary_of_one_hots))
-        yield padded_batch
-        padded_batch = []
+            padded_bills.append(padded_bill_of_one_hots)
+            padded_summaries.append(padded_summary_of_one_hots)
+        yield (padded_bills, padded_summaries)
+        padded_bills = []
+        padded_summaries = []
 
     #convert to integers
     print "finished inputting bills and summaries"
