@@ -24,7 +24,7 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             mask = mask[:MAX_BILL_LENGTH]
 
             for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
-                padded_bill.append(embedding_wrapper.pad)
+                padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
                 mask.append(False)
 
             padded_masks.append(mask)
