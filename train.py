@@ -7,9 +7,10 @@ from encoder_decoder_cells import DecoderCell
 
 import tensorflow as tf
 
-unique_clean_bill_names_85 = 'test_bill_names.csv'
-all_bill_directory = '/TEST_BILLS/'
-all_summary_directory = '/TEST_GOLD_SUMMARIES/'
+bill_data_file = "bill_data_extracted_full.txt"
+summary_data_file = "extracted_data_full.txt"
+indices_data_file = "indices_data_full.txt"
+
 BATCH_SIZE = 1
 
 
@@ -145,7 +146,7 @@ class SequencePredictor():
             #inserted for testing
                 for i in xrange(self.num_epochs):
                     batch_losses = []
-                    for batch in batch_generator(self.embedding_wrapper, unique_clean_bill_names_85, unique_clean_bill_names_85, BATCH_SIZE, self.bill_length, self.summ_length):
+                    for batch in batch_generator(self.embedding_wrapper, bill_data_file, indices_data_file, BATCH_SIZE, self.bill_length, self.summ_length):
                         # do additional preprociessing to change the indexes to one hot vectors inside generate batch
                         # print batch
                         # mask_batch = [True for i in xrange(self.bill_length)]
@@ -191,10 +192,7 @@ class SequencePredictor():
 
 
 def main():
-    bills_datapath = os.getcwd() + all_bill_directory
-    gold_summaries_datapath = os.getcwd() + all_summary_directory
-
-    embedding_wrapper = EmbeddingWrapper(bills_datapath)
+    embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
 
