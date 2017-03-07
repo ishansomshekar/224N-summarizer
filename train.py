@@ -33,13 +33,6 @@ class SequencePredictor():
         """Creates the feed_dict for the model.
         NOTE: You do not have to do anything here.
         """
-        # print inputs_batch
-        # print
-        # print labels_batch
-
-        # maskbatch = [True for i in xrange(self.bill_length)]
-        # label = [0 for i in xrange(self.bill_length)]
-        # label[3] = 1
         feed_dict = {
             self.inputs_placeholder : inputs_batch,
             self.mask_placeholder : masks_batch
@@ -49,21 +42,12 @@ class SequencePredictor():
         return feed_dict
 
     def fit_model(self):
-
-        ## BUILD PLACEHOLDERS
-
-        ## BUILD LOSS FUNCTION
-
-        ## BUILD OPTIMIZER
-
-        ## train batch
-
         #might not need the graph
         with tf.Graph().as_default():
             #
             # self.inputs_placeholder = tf.placeholder(tf.float32, shape=(None, self.bill_length))
             # self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length))
-            self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length, self.vocab_size))
+            self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
             # self.summary_input = tf.placeholder(tf.int32, shape=(None, self.summ_length, self.vocab_size))
             self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
             self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
