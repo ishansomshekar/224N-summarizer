@@ -8,7 +8,8 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
     #pad the bills and summaries
     print "now padding and encoding batches"
     padded_bills = []
-    padded_indices = []
+    padded_start_indices = []
+    padded_end_indices = []
     padded_masks = []
     for bill_batch, indices_batch, sequences in f_generator:
         # print "batch"
@@ -30,20 +31,25 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             padded_masks.append(mask)
             padded_bills.append(padded_bill)
 
-            index_one_hot = [0] * MAX_BILL_LENGTH
+            start_index_one_hot = [0] * MAX_BILL_LENGTH
             if start_index >= MAX_BILL_LENGTH:
-                index_one_hot[0] = 1
+                start_index_one_hot[0] = 1
             else:
-                index_one_hot[start_index] = 1
+                start_index_one_hot[start_index] = 1
+            
+            end_index_one_hot = [0] * MAX_BILL_LENGTH
             if end_index >= MAX_BILL_LENGTH:
-                index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
             else:
-                index_one_hot[end_index] = 1
+                end_index_one_hot[end_index] = 1
 
-            padded_indices.append(index_one_hot)
-        yield padded_bills, padded_indices, padded_masks, sequences
+            padded_start_indices.append(start_index_one_hot)
+            padded_end_indices.append(end_index_one_hot)
+
+        yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences
         padded_bills = []
-        padded_indices = []
+        padded_start_indices = []
+        padded_end_indices = []
         padded_masks = []
 
     #convert to integers
