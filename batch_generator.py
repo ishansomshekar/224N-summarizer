@@ -9,6 +9,8 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
     print "now padding and encoding batches"
     padded_bills = []
     padded_summaries = []
+    masks = []
+    dummy_labels = []
     for bill_batch, summary_batch in f_generator:
         # print "batch"
         # print bill_batch
@@ -17,11 +19,14 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
             summary = summary_batch[idx]
             padded_bill = [embedding_wrapper.get_value(word) for word in bill]
             padded_summary = [embedding_wrapper.get_value(word) for word in summary]
+            mask = [True for i in xrange(len(bill))]
             padded_bill = padded_bill[:MAX_BILL_LENGTH]
             padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
+            mask = mask[:MAX_BILL_LENGTH]
 
             for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
                 padded_bill.append(embedding_wrapper.pad)
+                mask.append(False)
 
             for i in xrange(0, MAX_SUMMARY_LENGTH - len(padded_summary)):
                 padded_summary.append(embedding_wrapper.pad)
@@ -38,9 +43,17 @@ def batch_generator(embedding_wrapper, bill_data_path, summary_data_path, batch_
 
             padded_bills.append(padded_bill_of_one_hots)
             padded_summaries.append(padded_summary_of_one_hots)
-        yield (padded_bills, padded_summaries)
+            masks.append(mask)
+            dummy = [0 for i in xrange(MAX_BILL_LENGTH)]
+            dummy[3] = 1
+            dummy_labels.append([dummy])
+
+
+        yield (padded_bills, padded_summaries, masks, dummy_labels)
         padded_bills = []
         padded_summaries = []
+        masks = []
+        dummy_labels = []
 
     #convert to integers
     print "finished inputting bills and summaries"

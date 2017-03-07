@@ -17,28 +17,35 @@ class SequencePredictor():
     def __init__(self, num_epochs, glove_dim, embedding_wrapper):
         self.glove_dim = glove_dim
         self.num_epochs = num_epochs
-        self.bill_length = 2
-        self.summ_length = 2
+        self.bill_length = 10
+        self.summ_length = 10
         self.lr = 0.05
         self.bill_input = None
         self.summary_input = None
+        self.mask_placeholder = None
+        self.labels_placeholder = None
         self.embedding_wrapper = embedding_wrapper
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-    def create_feed_dict(self, inputs_batch, labels_batch=None):
+    def create_feed_dict(self, inputs_batch, labels_batch, mask_batch):
         """Creates the feed_dict for the model.
         NOTE: You do not have to do anything here.
         """
-        print inputs_batch
-        print
-        print labels_batch
+        # print inputs_batch
+        # print
+        # print labels_batch
+
+        # maskbatch = [True for i in xrange(self.bill_length)]
+        # label = [0 for i in xrange(self.bill_length)]
+        # label[3] = 1
         feed_dict = {
             self.bill_input : inputs_batch,
+            self.mask_placeholder : mask_batch
             # self.embedding_init : embedding_value
             }
         if labels_batch is not None:
-            feed_dict[self.summary_input] = labels_batch
+            feed_dict[self.labels_placeholder] = labels_batch
         return feed_dict
 
     def fit_model(self):
@@ -58,6 +65,8 @@ class SequencePredictor():
             # self.summary_input = tf.placeholder(tf.float32, shape=(None, self.summ_length))
             self.bill_input = tf.placeholder(tf.int32, shape=(None, self.bill_length, self.vocab_size))
             self.summary_input = tf.placeholder(tf.int32, shape=(None, self.summ_length, self.vocab_size))
+            self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
+            self.labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
             #self.embedding_init = tf.placeholder(tf.float32, shape = (self.vocab_size, self.glove_dim))
             #  Weights are not the weights that we train on, they are weights given to each word in the sentence
             #  This can be changed to account for masking (set 0 weight to 0-padding) and for attention
@@ -73,7 +82,7 @@ class SequencePredictor():
             summ_embeddings = tf.nn.embedding_lookup(embeddings, self.summary_input)
             summ_embeddings = tf.reshape(summ_embeddings, (-1, self.summ_length, self.glove_dim))
 
-            preds = []
+            
             #10 is my dummy variable for hidden size
             
             #state = tf.zeros((self.bill_length), dtype = tf.float32)
@@ -114,9 +123,14 @@ class SequencePredictor():
                 #     preds.append(pred)
                 #     state = h_t
 
+            print dec_outputs
+            print "#################"
+            print self.labels_placeholder
 
-            l2loss = tf.nn.l2_loss(dec_outputs)
-            loss = tf.reduce_mean(l2loss)
+            softmax_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(dec_outputs, self.labels_placeholder)
+            
+            masked_loss = tf.boolean_mask(softmax_loss, self.mask_placeholder)
+            loss = tf.reduce_mean(masked_loss)
 
 
             # loss = seq2seq.sequence_loss(dec_outputs, self.summary_input, weights, self.vocab_size)
@@ -133,11 +147,17 @@ class SequencePredictor():
                     batch_losses = []
                     for batch in batch_generator(self.embedding_wrapper, unique_clean_bill_names_85, unique_clean_bill_names_85, BATCH_SIZE, self.bill_length, self.summ_length):
                         # do additional preprociessing to change the indexes to one hot vectors inside generate batch
-                        print batch
-                        feed = self.create_feed_dict(batch[0], batch[1])#, embedding_value)
+                        # print batch
+                        # mask_batch = [True for i in xrange(self.bill_length)]
+                        # labels = [0 for i in xrange(self.bill_length)]
+                        # labels[3] = 1
+                        print len(batch[0]), len(batch[1]), len(batch[2])
+                        feed = self.create_feed_dict(batch[0], batch[3], batch[2])#, embedding_value)
                         train, loss_ = sess.run([train_op, loss], feed_dict = feed)
 
                         batch_losses.append(loss_)
+                        print loss_
+                    print batch_losses
                     epoch_losses.append(batch_losses)
 
                 # for i in xrange(self.num_epochs):
@@ -178,7 +198,7 @@ def main():
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
 
-    model = SequencePredictor(1, 50, embedding_wrapper)
+    model = SequencePredictor(5, 50, embedding_wrapper)
     losses = model.fit_model()
     print losses
 
