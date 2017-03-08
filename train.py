@@ -13,7 +13,7 @@ from util import Progbar
 import tensorflow as tf
 
 ATTENTION_FLAG = 1
-UNIDIRECTIONAL_FLAG = 0
+UNIDIRECTIONAL_FLAG = True
 
 logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
@@ -333,8 +333,10 @@ class SequencePredictor():
         self.add_placeholders()
         bill_embeddings = self.return_embeddings()
         if UNIDIRECTIONAL_FLAG:
+            logger.info("Running unidirectional...",)
             preds = self.add_unidirectional_prediction_op(bill_embeddings)
         else:
+            logger.info("Running attentive...",)
             preds = self.add_attentive_predictor(bill_embeddings)
         loss = self.add_loss_op(preds)
         self.train_op = self.add_optimization(loss)
