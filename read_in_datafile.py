@@ -5,21 +5,27 @@ import tensorflow as tf
 import csv
 
 #can preprocess in this function
-def file_generator(batch_size, bill_data_path, summary_data_path):    
+def file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path):    
     current_batch_summaries = []
     current_batch_bills = []
+    current_batch_sequences = []
     counter = 0
-    with tf.gfile.GFile('bill_data_100.txt', mode="r") as source_file:
-        with tf.gfile.GFile('summary_data_100.txt', mode="r") as target_file:
-            for bill in source_file:
-                summary = target_file.readline()
-                counter += 1
-                current_batch_bills.append(bill)
-                current_batch_summaries.append(summary)
-                if len(current_batch_summaries) == batch_size:
-                    yield current_batch_bills, current_batch_summaries
-                    current_batch_bills = []
-                    current_batch_summaries = []
+    with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+        with tf.gfile.GFile(indices_data_path, mode="r") as target_file:
+            with tf.gfile.GFile(sequences_data_path, mode="r") as seq_file:
+                for bill in source_file:
+                    indices = target_file.readline()
+                    sequence_len = seq_file.readline()
+                    counter += 1
+                    start_and_end = indices.split()
+                    current_batch_bills.append(bill)
+                    current_batch_summaries.append((int(start_and_end[0]), int(start_and_end[1])))
+                    current_batch_sequences.append(int(sequence_len))
+                    if len(current_batch_summaries) == batch_size:
+                        yield current_batch_bills, current_batch_summaries, current_batch_sequences
+                        current_batch_bills = []
+                        current_batch_summaries = []
+                        current_batch_sequences = []
 
     # count = 0
     # print "generating dictionaries for bills and summaries"
