@@ -183,7 +183,7 @@ class SequencePredictor():
 
             # attention
             #v_a = tf.get_variable("v_a", shape=(self.hidden_size, 1),
-                                       initializer=tf.contrib.layers.xavier_initializer(),dtype=tf.float64)
+                                       #initializer=tf.contrib.layers.xavier_initializer(),dtype=tf.float64)
             # W_a = tf.get_variable("W_a", shape=(2*self.hidden_size, self.hidden_size),
             #                            initializer=tf.contrib.layers.xavier_initializer(),dtype=tf.float64)
             b_a = tf.get_variable("b_a", shape=(self.hidden_size),
