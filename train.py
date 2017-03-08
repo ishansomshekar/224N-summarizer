@@ -23,14 +23,14 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 20
+        self.bill_length = 500
         self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
         self.hidden_size = 10
         self.predictions = []
-        self.batch_size = 5
+        self.batch_size = 50
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
@@ -41,7 +41,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"
+        self.train_data_file = "train_data_extracted_full.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
@@ -49,7 +49,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "dev_bill_data_100.txt"
+        self.dev_data_file =  "dev_data_extracted_full.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
         self.dev_indices_data_file = "dev_indices_data_full.txt"
         self.dev_sequence_data_file = "dev_sequence_lengths.txt"
@@ -273,34 +273,49 @@ class SequencePredictor():
         correct_preds, total_correct, total_preds = 0., 0., 0.
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
-        for batch_preds in self.output(sess):
-            start_index_prediction = batch_preds[0]
-            #end_index_prediction = batch_preds[1]
-            gold = gold_standard.readline()
-            gold = gold.split()
-            gold_start = int(gold[0])
+        file_name = 'model_results' + str(time.time()) + ".txt"
+        with open(file_name, 'a') as f:
+            for batch_preds in self.output(sess):
+                start_index_prediction = batch_preds[0]
+                #end_index_prediction = batch_preds[1]
+                gold = gold_standard.readline()
+                gold = gold.split()
+                gold_start = int(gold[0])
 
-            start_index_prediction = start_index_prediction.tolist()
-            #end_index_prediction = end_index_prediction.tolist()
-            maxStart = max(start_index_prediction)
-            #maxEnd = max(end_index_prediction)
-            index_max1 = start_index_prediction.index(maxStart)
-            #index_max2 = end_index_prediction.index(maxEnd)
-            print index_max1
-            print gold_start
-            print
+                start_index_prediction = start_index_prediction.tolist()
+                #end_index_prediction = end_index_prediction.tolist()
+                maxStart = max(start_index_prediction)
+                #maxEnd = max(end_index_prediction)
+                index_max1 = start_index_prediction.index(maxStart)
+                #index_max2 = end_index_prediction.index(maxEnd)
+                text = file_dev.readline()
+                summary = ' '.join(text.split()[index_max1:index_max1 +20])
+                gold_summary = ' '.join(text.split()[gold_start:gold_start+20])
+                f.write('our summary: ' + summary + ' \n')
+                f.write('gold summary: ' + gold_summary + ' \n')
 
-            #text = file_dev.readline()
-            if index_max1 == gold_start:
-                correct_preds += 1
-            total_preds += 1
-            total_correct += 1
+                if index_max1 == gold_start:
+                    correct_preds += 1
+                total_preds += 1
+                total_correct += 1
 
-        p = correct_preds / total_preds if correct_preds > 0 else 0
-        r = correct_preds / total_correct if correct_preds > 0 else 0
-        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+            p = correct_preds / total_preds if correct_preds > 0 else 0
+            r = correct_preds / total_correct if correct_preds > 0 else 0
+            f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
-        gold_standard.close()
+            gold_standard.close()
+
+
+            f.write('Model results: \n')
+            f.write('learning rate: %d \n' % self.lr)
+            f.write('batch size: %d \n' % self.batch_size)
+            f.write('hidden size: %d \n' % self.hidden_size)
+            f.write('bill_length: %d \n' % self.bill_length)
+            f.write('bill_file: %s \n' % self.train_data_file)
+            f.write('dev_file: %s \n' % self.dev_data_file)
+            f.write("Epoch P/R/F1: %.2f/%.2f/%.2f \n" % (p, r, f1))
+            f.close()
+        
         return (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
@@ -336,22 +351,13 @@ class SequencePredictor():
         for epoch in range(self.num_epochs):
             print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
             score = self.run_epoch(sess)
-            if score[2] > best_score:
-                best_score = score[2]
+            if score > best_score:
+                best_score = score
                 if saver:
                     print("New best score! Saving model in %s" % self.model_output)
                     saver.save(sess, self.model_output)
             epoch_scores.append(score)
             print("")
-        
-        with open("model_results.txt", 'w') as f:
-            f.write('Model results:')
-            f.write('learning rate:' % self.learning_rate)
-            f.write('batch size:' % self.batch_size)
-            f.write('num_epochs:' % self.num_epochs)
-            for i, score in enumerate(epoch_scores):
-                f.write("Epoch %d, P/R/F1: %.2f/%.2f/%.2f" % (i+1, score[0], score[1], score[2]))
-            f.close()
 
     def initialize_model(self):
         self.add_placeholders()
