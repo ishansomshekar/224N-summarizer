@@ -36,15 +36,15 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"
+        self.train_data_file = "train_data_extracted_full.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
-        self.train_indices_data_file = "indices_data_100_test.txt"
-        self.train_sequence_data_file = "sequence_lengths.txt"
+        self.train_indices_data_file = "train_indices_data_full.txt"
+        self.train_sequence_data_file = "train_sequence_lengths.txt"
 
-        self.dev_data_file =  "dev_bill_data_100.txt"
+        self.dev_data_file =  "dev_data_extracted_full.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
-        self.dev_indices_data_file = "indices_dev_100.txt"
-        self.dev_sequence_data_file = "sequence_len_dev_100.txt"
+        self.dev_indices_data_file = "dev_indices_data_full.txt"
+        self.dev_sequence_data_file = "dev_sequence_lengths.txt"
 
     def create_feed_dict(self, inputs_batch, masks_batch, sequences, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
@@ -175,7 +175,7 @@ class SequencePredictor():
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, end_labels_batch = end_labels_batch, masks_batch=mask_batch, sequences = sequence_batch)
         ##### THIS IS SO CONFUSING ######
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
-        return loss
+	return loss
 
     def run_epoch(self, sess):
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
