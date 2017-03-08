@@ -134,6 +134,7 @@ class SequencePredictor():
         correct_preds, total_correct, total_preds = 0., 0., 0.
         gold_standard = open(self.dev_indices_data_file, 'r')
         batch_preds = self.output(sess)
+        file_dev = open(self.dev_data_file, 'r')
         for batch_preds in self.output(sess):
             start_index_prediction = batch_preds[0]
             end_index_prediction = batch_preds[1]
@@ -145,15 +146,22 @@ class SequencePredictor():
             golds.add(gold_end)
             golds.add(gold_start)
 
-            # print start_index_prediction
-            # print end_index_prediction
-            # print
-            index_max1 = np.argmax(start_index_prediction)
-            index_max2 = np.argmax(end_index_prediction)
-            # index_max2 = np.argsort(batch_preds)[-2:]
+            start_index_prediction = start_index_prediction.tolist()
+            end_index_prediction = end_index_prediction.tolist()
+            maxStart = max(start_index_prediction)
+            maxEnd = max(end_index_prediction)
+            index_max1 = start_index_prediction.index(maxStart)
+            index_max2 = end_index_prediction.index(maxEnd)
+
             prediction = set()
             prediction.add(index_max1)
             prediction.add(index_max2)
+
+            text = file_dev.readline()
+            first_index = min(index_max1, index_max2)
+            sec_index = max(index_max1, index_max2)
+            print ' '.join(text.split()[first_index:sec_index])
+            print
             
             correct_preds += len(golds.intersection(prediction))
             total_preds += len(prediction)
@@ -192,12 +200,12 @@ class SequencePredictor():
     def fit(self, sess, saver):
         best_score = 0.
         for epoch in range(self.num_epochs):
-            logger.info("Epoch %d out of %d", epoch + 1, self.num_epochs)
+            print("Epoch %d out of %d", epoch + 1, self.num_epochs)
             score = self.run_epoch(sess)
             if score > best_score:
                 best_score = score
                 if saver:
-                    logger.info("New best score! Saving model in %s", self.model_output)
+                    print("New best score! Saving model in %s", self.model_output)
                     saver.save(sess, self.model_output)
             print("")
         return best_score
