@@ -329,19 +329,29 @@ class SequencePredictor():
 
         f1 = entity_scores[-1]
         return f1
-
+    
     def fit(self, sess, saver):
         best_score = 0.
+        epoch_scores = []
         for epoch in range(self.num_epochs):
-            print("Epoch %d out of %d", epoch + 1, self.num_epochs)
+            print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
             score = self.run_epoch(sess)
-            if score > best_score:
-                best_score = score
+            if score[2] > best_score:
+                best_score = score[2]
                 if saver:
-                    print("New best score! Saving model in %s", self.model_output)
+                    print("New best score! Saving model in %s" % self.model_output)
                     saver.save(sess, self.model_output)
+            epoch_scores.append(score)
             print("")
-        return best_score
+        
+        with open("model_results.txt", 'w') as f:
+            f.write('Model results:')
+            f.write('learning rate:' % self.learning_rate)
+            f.write('batch size:' % self.batch_size)
+            f.write('num_epochs:' % self.num_epochs)
+            for i, score in enumerate(epoch_scores):
+                f.write("Epoch %d, P/R/F1: %.2f/%.2f/%.2f" % (i+1, score[0], score[1], score[2]))
+            f.close()
 
     def initialize_model(self):
         self.add_placeholders()
