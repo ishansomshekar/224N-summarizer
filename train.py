@@ -20,14 +20,14 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 500
-        self.lr = 0.05
+        self.bill_length = 200
+        self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
         self.hidden_size = 10
         self.predictions = []
-        self.batch_size = 1
+        self.batch_size = 5
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
@@ -38,7 +38,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"
+        self.train_data_file = "train_data_extracted_full.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
@@ -46,7 +46,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_data_100_test.txt"
+        self.dev_data_file =  "dev_data_extracted_full.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
         self.dev_indices_data_file = "dev_indices_data_full.txt"
         self.dev_sequence_data_file = "dev_sequence_lengths.txt"
@@ -70,7 +70,7 @@ class SequencePredictor():
     def add_placeholders(self):
         self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
-        self.start_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
+        self.start_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None, self.bill_length))
         self.end_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
 
@@ -91,43 +91,35 @@ class SequencePredictor():
         b2_1 = tf.get_variable('b2_1', (self.bill_length), \
         initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-        # U_2 = tf.get_variable('U_2', (self.hidden_size * self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        # b2_2 = tf.get_variable('b2_2', (self.bill_length), \
-        # initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        # U_3 = tf.get_variable('U_3', (self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        U_2 = tf.get_variable('U_2', (self.hidden_size, 1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        b2_2 = tf.get_variable('b2_2', shape = (), \
+        initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
         with tf.variable_scope("decoder"):
             dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            preds, state = tf.nn.dynamic_rnn(dec_cell,bill_embeddings, sequence_length = self.sequences_placeholder, dtype = tf.float64, initial_state = state)
-        preds = tf.reshape(preds, (-1, self.hidden_size * self.bill_length))
-        #learn weights for initial index
-        preds_start = tf.matmul(preds, U_1) + b2_1
-        #learn weights for end index
-        #also multiply the start index
-        #preds_end = tf.matmul(preds, U_2) + tf.matmul(preds_start, U_3) + b2_2
-        #self.predictions = (preds_start, preds_end)
-        self.predictions = preds_start
-        return preds_start
-        #return (preds_start, preds_end)
+            for time_step in range(self.bill_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                o_t, h_t = dec_cell(bill_embeddings[:, time_step, :], state)
+                h_t = h_t[0] + h_t[1]
+                h_t = tf.matmul(h_t, U_2) + b2_2
+                preds.append(h_t)
+                
+        preds = tf.nn.sigmoid(preds)
+        preds = tf.reshape(preds, (self.batch_size, self.bill_length))
+        self.predictions = preds
+        return preds
 
     def add_loss_op(self, preds):
-        # start_pred = preds[0]
-        # end_pred = preds[1]
-        start_pred = preds[0]
-        # end_pred = preds[1]
+        start_pred = preds
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(start_pred, self.start_index_labels_placeholder)
-        # loss_2 = tf.nn.softmax_cross_entropy_with_logits(end_pred, self.end_index_labels_placeholder)
         loss_1 = tf.reduce_mean(loss_1)
-        # loss_2 = tf.reduce_mean(loss_2)
-        loss = loss_1 #+ loss_2
-
-        # loss = tf.nn.softmax_cross_entropy_with_logits(preds, self.labels_placeholder)
-        # loss = tf.reduce_mean(loss)
+        loss = loss_1 
         self.loss = loss        
         return loss
 
     def add_optimization(self, loss):
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
         train_op = optimizer.minimize(loss)  
         self.train_op = train_op 
         return train_op     
