@@ -20,7 +20,7 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 30
+        self.bill_length = 500
         self.lr = 0.05
         self.inputs_placeholder = None
         self.summary_input = None
@@ -38,15 +38,22 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_data_extracted_full.txt"
+        self.train_data_file = "bills_data_100_test.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
+        file_open = open(self.train_data_file, 'r')
+        self.train_len = len(file_open.read().split("\n"))
+        file_open.close()
 
-        self.dev_data_file =  "dev_data_extracted_full.txt"
+        self.dev_data_file =  "bills_data_100_test.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
         self.dev_indices_data_file = "dev_indices_data_full.txt"
         self.dev_sequence_data_file = "dev_sequence_lengths.txt"
+
+        file_open = open(self.dev_data_file, 'r')
+        self.dev_len = len(file_open.read().split("\n"))
+        file_open.close()
 
     def create_feed_dict(self, inputs_batch, masks_batch, sequences, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
@@ -84,10 +91,10 @@ class SequencePredictor():
         b2_1 = tf.get_variable('b2_1', (self.bill_length), \
         initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-        U_2 = tf.get_variable('U_2', (self.hidden_size * self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        b2_2 = tf.get_variable('b2_2', (self.bill_length), \
-        initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        U_3 = tf.get_variable('U_3', (self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        # U_2 = tf.get_variable('U_2', (self.hidden_size * self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        # b2_2 = tf.get_variable('b2_2', (self.bill_length), \
+        # initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        # U_3 = tf.get_variable('U_3', (self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
         with tf.variable_scope("decoder"):
             dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
@@ -97,22 +104,22 @@ class SequencePredictor():
         preds_start = tf.matmul(preds, U_1) + b2_1
         #learn weights for end index
         #also multiply the start index
-        preds_end = tf.matmul(preds, U_2) + tf.matmul(preds_start, U_3) + b2_2
+        #preds_end = tf.matmul(preds, U_2) + tf.matmul(preds_start, U_3) + b2_2
         #self.predictions = (preds_start, preds_end)
-        self.predictions = (preds_start, preds_end)
-        return (preds_start, preds_end)
+        self.predictions = preds_start
+        return preds_start
         #return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
         # start_pred = preds[0]
         # end_pred = preds[1]
         start_pred = preds[0]
-        end_pred = preds[1]
+        # end_pred = preds[1]
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(start_pred, self.start_index_labels_placeholder)
-        loss_2 = tf.nn.softmax_cross_entropy_with_logits(end_pred, self.end_index_labels_placeholder)
+        # loss_2 = tf.nn.softmax_cross_entropy_with_logits(end_pred, self.end_index_labels_placeholder)
         loss_1 = tf.reduce_mean(loss_1)
-        loss_2 = tf.reduce_mean(loss_2)
-        loss = loss_1 + loss_2
+        # loss_2 = tf.reduce_mean(loss_2)
+        loss = loss_1 #+ loss_2
 
         # loss = tf.nn.softmax_cross_entropy_with_logits(preds, self.labels_placeholder)
         # loss = tf.reduce_mean(loss)
@@ -127,7 +134,7 @@ class SequencePredictor():
 
     def output(self, sess):
         batch_preds = []
-        prog = Progbar(target=1 + int(12000.0 / self.batch_size))
+        prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.batch_size, self.bill_length):
             preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences)
@@ -143,35 +150,35 @@ class SequencePredictor():
         file_dev = open(self.dev_data_file, 'r')
         for batch_preds in self.output(sess):
             start_index_prediction = batch_preds[0]
-            end_index_prediction = batch_preds[1]
+            #end_index_prediction = batch_preds[1]
             gold = gold_standard.readline()
             gold = gold.split()
             gold_start = int(gold[0])
-            gold_end = int(gold[1])
-            golds = set()
-            golds.add(gold_end)
-            golds.add(gold_start)
+            #gold_end = int(gold[1])
+            #golds = set()
+            #golds.add(gold_end)
+            #golds.add(gold_start)
 
             start_index_prediction = start_index_prediction.tolist()
-            end_index_prediction = end_index_prediction.tolist()
+            #end_index_prediction = end_index_prediction.tolist()
             maxStart = max(start_index_prediction)
-            maxEnd = max(end_index_prediction)
+            #maxEnd = max(end_index_prediction)
             index_max1 = start_index_prediction.index(maxStart)
-            index_max2 = end_index_prediction.index(maxEnd)
-
-            prediction = set()
-            prediction.add(index_max1)
-            prediction.add(index_max2)
+            #index_max2 = end_index_prediction.index(maxEnd)
+            print index_max1
+            print gold_start
+            print
+            #prediction = set()
+            #prediction.add(index_max1)
+            #prediction.add(index_max2)
 
             text = file_dev.readline()
-            first_index = min(index_max1, index_max2)
-            sec_index = max(index_max1, index_max2)
-            print ' '.join(text.split()[first_index:sec_index])
-            print
-            
-            correct_preds += len(golds.intersection(prediction))
-            total_preds += len(prediction)
-            total_correct += len(golds)
+            #first_index = min(index_max1, index_max2)
+            #sec_index = max(index_max1, index_max2)
+            if index_max1 == gold_start:
+                correct_preds += 1
+            total_preds += 1
+            total_correct += 1
 
         p = correct_preds / total_preds if correct_preds > 0 else 0
         r = correct_preds / total_correct if correct_preds > 0 else 0
@@ -181,18 +188,18 @@ class SequencePredictor():
         return (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, end_labels_batch = end_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
         predictions = sess.run(self.predictions, feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, end_labels_batch = end_labels_batch, masks_batch=mask_batch, sequences = sequence_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch)
         ##### THIS IS SO CONFUSING ######
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
 	return loss
 
     def run_epoch(self, sess):
-        prog = Progbar(target=1 + int(50000.0 / self.batch_size))
+        prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
