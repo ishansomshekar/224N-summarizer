@@ -38,7 +38,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_data_extracted_full.txt"
+        self.train_data_file = "bills_data_100_test.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
@@ -46,7 +46,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "dev_data_extracted_full.txt"
+        self.dev_data_file =  "dev_bill_data_100.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
         self.dev_indices_data_file = "dev_indices_data_full.txt"
         self.dev_sequence_data_file = "dev_sequence_lengths.txt"
@@ -70,7 +70,7 @@ class SequencePredictor():
     def add_placeholders(self):
         self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
-        self.start_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None, self.bill_length))
+        self.start_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.end_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
 
@@ -88,11 +88,11 @@ class SequencePredictor():
         #decoder
         preds = []
         U_1 = tf.get_variable('U_1', (self.hidden_size * self.bill_length, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        b2_1 = tf.get_variable('b2_1', (self.bill_length), \
+        b2_1 = tf.get_variable('b2_1', (self.batch_size,self.bill_length), \
         initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-        U_2 = tf.get_variable('U_2', (self.hidden_size, 1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-        b2_2 = tf.get_variable('b2_2', shape = (), \
+        U_2 = tf.get_variable('U_2', (self.hidden_size, self.bill_length), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        b2_2 = tf.get_variable('b2_2', shape = (self.batch_size,self.bill_length), \
         initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
         with tf.variable_scope("decoder"):
@@ -102,19 +102,18 @@ class SequencePredictor():
                     tf.get_variable_scope().reuse_variables()
                 o_t, h_t = dec_cell(bill_embeddings[:, time_step, :], state)
                 h_t = h_t[0] + h_t[1]
-                h_t = tf.matmul(h_t, U_2) + b2_2
+                h_t = tf.matmul(h_t, U_2) #+ b2_2
                 preds.append(h_t)
-                
-        preds = tf.nn.sigmoid(preds)
-        preds = tf.reshape(preds, (self.batch_size, self.bill_length))
+        preds = tf.pack(preds)
+        preds = tf.transpose(preds, [1,0,2])     
         self.predictions = preds
         return preds
 
     def add_loss_op(self, preds):
         start_pred = preds
-        loss_1 = tf.nn.softmax_cross_entropy_with_logits(start_pred, self.start_index_labels_placeholder)
-        loss_1 = tf.reduce_mean(loss_1)
-        loss = loss_1 
+        loss_1 = tf.nn.sparse_softmax_cross_entropy_with_logits(start_pred, self.start_index_labels_placeholder)
+        masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
+        loss = tf.reduce_mean(loss_1) 
         self.loss = loss        
         return loss
 
@@ -146,10 +145,6 @@ class SequencePredictor():
             gold = gold_standard.readline()
             gold = gold.split()
             gold_start = int(gold[0])
-            #gold_end = int(gold[1])
-            #golds = set()
-            #golds.add(gold_end)
-            #golds.add(gold_start)
 
             start_index_prediction = start_index_prediction.tolist()
             #end_index_prediction = end_index_prediction.tolist()
@@ -160,13 +155,8 @@ class SequencePredictor():
             print index_max1
             print gold_start
             print
-            #prediction = set()
-            #prediction.add(index_max1)
-            #prediction.add(index_max2)
 
-            text = file_dev.readline()
-            #first_index = min(index_max1, index_max2)
-            #sec_index = max(index_max1, index_max2)
+            #text = file_dev.readline()
             if index_max1 == gold_start:
                 correct_preds += 1
             total_preds += 1
@@ -181,7 +171,7 @@ class SequencePredictor():
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
-        predictions = sess.run(self.predictions, feed_dict=feed)
+        predictions = sess.run(tf.argmax(self.predictions,axis = 2), feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch):
