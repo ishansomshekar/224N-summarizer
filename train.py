@@ -8,6 +8,8 @@ import heapq
 import logging
 import time
 
+from util import Progbar
+
 import tensorflow as tf
 
 logger = logging.getLogger("hw3.q2")
@@ -36,7 +38,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_data_extracted_full.txt"
+        self.train_data_file = "bills_data_100_test.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
@@ -125,9 +127,13 @@ class SequencePredictor():
 
     def output(self, sess):
         batch_preds = []
+        prog = Progbar(target=1 + int(12000.0 / self.batch_size))
+        count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.batch_size, self.bill_length):
             preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences)
             batch_preds.append(list(preds_))
+            prog.update(count + 1, [])
+            count +=1
         return batch_preds
 
     def evaluate(self, sess):
@@ -186,13 +192,17 @@ class SequencePredictor():
 	return loss
 
     def run_epoch(self, sess):
+        prog = Progbar(target=1 + int(50000.0 / self.batch_size))
+        count = 0
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
+            prog.update(count + 1, [("train loss", loss)])
+            count += 1
         print("")
 
-        logger.info("Evaluating on development data")
+        print("Evaluating on development data")
         entity_scores = self.evaluate(sess)
-        logger.info("Entity level P/R/F1: %.2f/%.2f/%.2f", *entity_scores)
+        print("Entity level P/R/F1: %.2f/%.2f/%.2f", entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
         return f1
