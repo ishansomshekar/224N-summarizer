@@ -35,6 +35,7 @@ class EmbeddingWrapper(object):
         self.file_names = []
         self.pad = 'PAD'
         self.unk = 'UNK'
+        self.bills_datapath = os.getcwd() + '/bill_data_extracted_full.txt'
 
 
     # def build_vocab(self):
@@ -162,10 +163,10 @@ class EmbeddingWrapper(object):
 
 
 if __name__ == '__main__':
-    bills_datapath = os.getcwd() + '/bill_data_100.txt'
+    bills_datapath = os.getcwd() + '/bill_data_extracted_full.txt'
     gold_summaries_datapath = os.getcwd() +'/ALL_GOLD_SUMMARIES/'
 
-    embedding_wrapper = EmbeddingWrapper(bills_datapath)
+    embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
     with open('vocab.dat', 'w') as f:
         pickle.dump(embedding_wrapper.vocab, f)
