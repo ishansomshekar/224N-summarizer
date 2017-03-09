@@ -7,6 +7,7 @@ from encoder_decoder_cells import DecoderCell
 import heapq
 import logging
 import time
+from attention_decoder import attention_decoder
 
 from util import Progbar
 
@@ -23,7 +24,7 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 100
+        self.bill_length = 400
         self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
@@ -41,7 +42,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_data_extracted_full.txt"
+        self.train_data_file = 'bills_data_100_test.txt'#"train_data_extracted_full.txt"
         self.train_summary_data_file = "extracted_data_full.txt"
         self.train_indices_data_file = "train_indices_data_full.txt"
         self.train_sequence_data_file = "train_sequence_lengths.txt"
@@ -49,7 +50,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "dev_data_extracted_full.txt"
+        self.dev_data_file =  'dev_bill_data_100.txt'#"dev_data_extracted_full.txt"
         self.dev_summary_data_file =  "extracted_data_full.txt"
         self.dev_indices_data_file = "dev_indices_data_full.txt"
         self.dev_sequence_data_file = "dev_sequence_lengths.txt"
@@ -86,7 +87,6 @@ class SequencePredictor():
 
     def add_unidirectional_prediction_op(self, bill_embeddings):          
         #use hidden states in encoder to make a predictions
-
         with tf.variable_scope("encoder"):
             enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
             outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
@@ -106,35 +106,34 @@ class SequencePredictor():
             initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             for i in xrange(self.batch_size):
                 bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
-                
                 result = tf.matmul(bill, U_1) + b2_1
-                result = tf.nn.sigmoid(result)
-                #result = tf.transpose(result, [1,0])
+                #result = tf.nn.sigmoid(result)
                 preds.append(result)
-        #preds = tf.pack(preds)
         self.predictions = preds
         return preds
 
     def add_loss_op(self, preds):
-        # print "preds: ", preds
-        # print "labels: ", self.start_index_labels_placeholder
+        #print "preds: ", preds
+        #print "labels: ", self.start_index_labels_placeholder
 
-        #loss_1 = tf.nn.sparse_softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
-        #masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
+        # loss_1 = tf.nn.sparse_softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
+        # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
         losses = []
         for i,pred in enumerate(preds):
             labels = self.start_index_labels_placeholder[i]
             mask = self.mask_placeholder[i]
             loss_1 = tf.sub(labels,pred)
             loss_1 = tf.boolean_mask(loss_1, mask)
-        loss = tf.reduce_mean(loss_1) 
-        self.loss = loss        
-        return loss
+            #loss_1 = tf.reduce_mean(loss_1) 
+            losses.append(loss_1)
+        self.loss = losses       
+        return losses
 
-    def add_optimization(self, loss):
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-        train_op = optimizer.minimize(loss)  
-        self.train_op = train_op 
+    def add_optimization(self, losses):
+        for loss in losses:
+            optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+            train_op = optimizer.minimize(loss)  
+            self.train_op = train_op 
         return train_op     
 
     def output(self, sess):
@@ -155,6 +154,8 @@ class SequencePredictor():
         file_name = 'model_results' + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for batch_preds in self.output(sess):
+                print batch_preds
+                print
                 start_index_prediction = batch_preds[0]
                 #end_index_prediction = batch_preds[1]
                 gold = gold_standard.readline()
@@ -215,7 +216,7 @@ class SequencePredictor():
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
             #print start_labels
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
-            prog.update(count + 1, [("train loss", loss)])
+            prog.update(count + 1, [])
             count += 1
         print("")
 
