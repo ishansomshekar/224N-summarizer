@@ -20,8 +20,12 @@ logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
+##EDIT THIS
+train_name = '3.8 7:44pm'
+
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
+
         self.glove_dim = 50
         self.num_epochs = 10
         self.bill_length = 500
@@ -148,7 +152,7 @@ class SequencePredictor():
         start_num_exact_correct, end_num_exact_correct = 0, 0
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
-        file_name = 'model_results' + str(time.time()) + ".txt"
+        file_name = train_name + "/" + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for batch_preds in self.output(sess):
                 for preds in batch_preds:
@@ -293,6 +297,9 @@ def build_model(embedding_wrapper):
             model.fit(session, saver)
 
 def main():
+    mydir = os.path.join(os.getcwd(), train_name)
+    os.makedirs(mydir)
+
     embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
