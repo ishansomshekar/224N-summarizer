@@ -18,10 +18,13 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
         #print indices_batch
         for idx, bill in enumerate(bill_batch):
             start_index, end_index = indices_batch[idx]
-            padded_bill = [embedding_wrapper.get_value(word) for word in bill]
+            sequence_len = sequences[idx]
+            keywords_batch = keywords[idx]
+            bill_list = [embedding_wrapper.get_value(word) for word in bill.split()]
+            padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
             # padded_summary = [embedding_wrapper.get_value(word) for word in summary] d g
-            mask = [True] * min(len(bill), MAX_BILL_LENGTH)
-            padded_bill = padded_bill[:MAX_BILL_LENGTH]
+            mask = [True] * min(len(bill_list), MAX_BILL_LENGTH)
+            padded_bill = bill_list[:MAX_BILL_LENGTH]
             # padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
             mask = mask[:MAX_BILL_LENGTH]
 
@@ -29,8 +32,8 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
                 padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
                 mask.append(False)
 
-            for i in xrange(0, 5 - len(keywords)):
-                keywords.append(embedding_wrapper.get_value(embedding_wrapper.pad))
+            for i in xrange(0, 5 - len(padded_keyword)):
+                padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
             padded_masks.append(mask)
             padded_bills.append(padded_bill)
@@ -47,9 +50,23 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             else:
                 start_index_one_hot[end_index] = 1
 
+            #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
+            if (len(start_index_one_hot) > len(bill_list)):
+                val = 0
+                for i in xrange(0, len(start_index_one_hot) - sequence_len):
+                    start_index_one_hot[sequence_len + i] = val
+                    val ^= 1
+
+            # print "seq_len",sequence_len
+            # print "number of words in bill: ", len(bill_list)
+            # print "length of one hots:" ,len(start_index_one_hot)
+            # print "one hots:", start_index_one_hot
+            # print "different in padded and actual lengths", len(start_index_one_hot) - len(bill_list)
+            # print
+
             padded_start_indices.append(start_index_one_hot)
             padded_end_indices.append(end_index_one_hot)
-            padded_keywords.append(keywords)
+            padded_keywords.append(padded_keyword)
 
         yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
         padded_bills = []
