@@ -16,6 +16,8 @@ import tensorflow as tf
 ATTENTION_FLAG = 1
 UNIDIRECTIONAL_FLAG = True
 
+save_results = False
+
 logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
@@ -26,7 +28,7 @@ train_name = '3.8 7:44pm'
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 50
+        self.glove_dim = 200
         self.num_epochs = 10
         self.bill_length = 500
         self.lr = 0.0005
@@ -83,7 +85,7 @@ class SequencePredictor():
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.50d.npz')
+        data = np.load('trimmed_glove.6B.200d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -186,18 +188,12 @@ class SequencePredictor():
                     print "our end guess: ", end_index
                     print "gold_end: ", gold_end
 
-                    predicted_summary_len = end_index - start_index
-                    gold_summary_len = gold_end - gold_start
-
-                    x = range(start_index,end_index)
-                    y = range(gold_start,gold_end)
+                    x = range(start_index,end_index + 1)
+                    y = range(gold_start,gold_end + 1)
                     xs = set(x)
-                    overlap = list(xs.intersection(y))
+                    overlap = xs.intersection(y)
                     overlap = len(overlap)
 
-                    summary_bag = set(summary.split())
-                    gold_summary_bag = set(gold_summary.split())
-                    
                     if start_index == gold_start:
                         start_num_exact_correct += 1
                     if end_index == gold_end:
@@ -205,8 +201,8 @@ class SequencePredictor():
                     
                     number_indices += 1
                     correct_preds += overlap
-                    total_preds += len(summary_bag)
-                    total_correct += len(gold_summary_bag)
+                    total_preds += len(x)
+                    total_correct += len(y)
 
             start_exact_match = start_num_exact_correct/number_indices
             end_exact_match = end_num_exact_correct/number_indices
@@ -297,8 +293,9 @@ def build_model(embedding_wrapper):
             model.fit(session, saver)
 
 def main():
-    mydir = os.path.join(os.getcwd(), train_name)
-    os.makedirs(mydir)
+    if save_results:
+        mydir = os.path.join(os.getcwd(), train_name)
+        os.makedirs(mydir)
 
     embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
