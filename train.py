@@ -24,7 +24,7 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 400
+        self.bill_length = 500
         self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
@@ -74,7 +74,7 @@ class SequencePredictor():
     def add_placeholders(self):
         self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
-        self.start_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None, self.bill_length))
+        self.start_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.end_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
 
@@ -100,6 +100,7 @@ class SequencePredictor():
         complete_outputs = tf.concat(2, [outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
 
         preds = []
+        bills = []
         with tf.variable_scope("decoder"):
             U_1 = tf.get_variable('U_1', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             b2_1 = tf.get_variable('b2_1', (self.bill_length,1), \
@@ -107,34 +108,29 @@ class SequencePredictor():
             for i in xrange(self.batch_size):
                 bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
                 result = tf.matmul(bill, U_1) + b2_1
-                #result = tf.nn.sigmoid(result)
+                result = tf.nn.sigmoid(result)
                 preds.append(result)
+                bills.append(bill)
+        preds = tf.pack(preds)
+        preds = tf.squeeze(preds)
+        preds = tf.nn.sigmoid(preds)
         self.predictions = preds
         return preds
 
     def add_loss_op(self, preds):
-        #print "preds: ", preds
-        #print "labels: ", self.start_index_labels_placeholder
+        print "preds: ", preds
+        print "labels: ", self.start_index_labels_placeholder
 
-        # loss_1 = tf.nn.sparse_softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
-        # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-        losses = []
-        for i,pred in enumerate(preds):
-            labels = self.start_index_labels_placeholder[i]
-            mask = self.mask_placeholder[i]
-            loss_1 = tf.sub(labels,pred)
-            loss_1 = tf.boolean_mask(loss_1, mask)
-            #loss_1 = tf.reduce_mean(loss_1) 
-            losses.append(loss_1)
-        self.loss = losses       
-        return losses
+        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
+        #masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
+        loss = loss_1
+        self.loss = loss     
+        return self.loss
 
     def add_optimization(self, losses):
-        for loss in losses:
-            optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
-            train_op = optimizer.minimize(loss)  
-            self.train_op = train_op 
-        return train_op     
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+        self.train_op = optimizer.minimize(losses)
+        return self.train_op    
 
     def output(self, sess):
         batch_preds = []
@@ -154,10 +150,7 @@ class SequencePredictor():
         file_name = 'model_results' + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for batch_preds in self.output(sess):
-                print batch_preds
-                print
                 start_index_prediction = batch_preds[0]
-                #end_index_prediction = batch_preds[1]
                 gold = gold_standard.readline()
                 gold = gold.split()
                 gold_start = int(gold[0])
@@ -171,8 +164,11 @@ class SequencePredictor():
                 text = file_dev.readline()
                 summary = ' '.join(text.split()[index_max1:index_max1 +20])
                 gold_summary = ' '.join(text.split()[gold_start:gold_start+20])
-                f.write('our summary: ' + summary + ' \n')
-                f.write('gold summary: ' + gold_summary + ' \n')
+                f.write(summary + ' \n')
+                f.write(gold_summary + ' \n')
+
+                print index_max1
+                print gold_start
 
                 if index_max1 == gold_start:
                     correct_preds += 1
@@ -200,7 +196,7 @@ class SequencePredictor():
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
-        predictions = sess.run(tf.argmax(self.predictions,axis = 2), feed_dict=feed)
+        predictions = sess.run(self.predictions, feed_dict=feed)
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch):
@@ -214,6 +210,7 @@ class SequencePredictor():
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
+            #print start_labels
             #print start_labels
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
             prog.update(count + 1, [])
