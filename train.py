@@ -16,20 +16,26 @@ import tensorflow as tf
 ATTENTION_FLAG = 1
 UNIDIRECTIONAL_FLAG = True
 
+save_results = False
+
 logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
+##EDIT THIS
+train_name = '3.8 7:44pm'
+
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
-        self.glove_dim = 50
+
+        self.glove_dim = 200
         self.num_epochs = 10
         self.bill_length = 500
-        self.lr = 0.0001
+        self.lr = 0.0005
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
-        self.hidden_size = 10
+        self.hidden_size = 20
         self.predictions = []
         self.batch_size = 50
         self.model_output = os.getcwd() + "model.weights"
@@ -79,7 +85,7 @@ class SequencePredictor():
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.50d.npz')
+        data = np.load('trimmed_glove.6B.200d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -186,43 +192,61 @@ class SequencePredictor():
 
     def evaluate(self, sess):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
-        num_exact_correct = 0
+        start_num_exact_correct, end_num_exact_correct = 0, 0
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
-        file_name = 'model_results' + str(time.time()) + ".txt"
+        file_name = train_name + "/" + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for batch_preds in self.output(sess):
-                print batch_preds
-                start_index_prediction = batch_preds[0]
-                gold = gold_standard.readline()
-                gold = gold.split()
-                gold_start = int(gold[0])
+                for preds in batch_preds:
+                    index_prediction = preds
+                    gold = gold_standard.readline()
+                    gold = gold.split()
+                    gold_start = int(gold[0])
+                    gold_end = int(gold[1])
 
-                start_index_prediction = start_index_prediction.tolist()
-                #end_index_prediction = end_index_prediction.tolist()
-                maxStart = max(start_index_prediction)
-                #maxEnd = max(end_index_prediction)
-                index_max1 = start_index_prediction.index(maxStart)
-                #index_max2 = end_index_prediction.index(maxEnd)
-                text = file_dev.readline()
-                summary = ' '.join(text.split()[index_max1:index_max1 +20])
-                gold_summary = ' '.join(text.split()[gold_start:gold_start+20])
-                f.write(summary + ' \n')
-                f.write(gold_summary + ' \n')
+                    index_prediction = index_prediction.tolist()
+                    maxStart = max(index_prediction)
+                    index_max1 = index_prediction.index(maxStart)
+                    
+                    index_prediction_copy = index_prediction[:]
+                    index_prediction_copy[index_max1] = 0
+                    maxEnd = max(index_prediction_copy)
+                    index_max2 = index_prediction_copy.index(maxEnd)
 
-                print "our guess: ", index_max1
-                print "gold_start: ", gold_start
+                    #switch the orders if necessary
+                    start_index = min(index_max2, index_max1)
+                    end_index = max(index_max2, index_max1)
 
-                summary_bag = set(summary)
-                gold_summary_bag = set(gold_summary)
-                if index_max1 == gold_start:
-                    num_exact_correct += 1
-                correct_preds += len(gold_summary_bag.intersection(summary_bag))
-                total_preds += len(summary_bag)
-                total_correct += len(gold_summary_bag)
-                number_indices += 1
+                    text = file_dev.readline()
+                    summary = ' '.join(text.split()[start_index:end_index])
+                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
+                    f.write(summary + ' \n')
+                    f.write(gold_summary + ' \n')
 
-            exact_match = num_exact_correct/number_indices
+                    print "our start guess: ", start_index
+                    print "gold_start: ", gold_start
+                    print "our end guess: ", end_index
+                    print "gold_end: ", gold_end
+
+                    x = range(start_index,end_index + 1)
+                    y = range(gold_start,gold_end + 1)
+                    xs = set(x)
+                    overlap = xs.intersection(y)
+                    overlap = len(overlap)
+
+                    if start_index == gold_start:
+                        start_num_exact_correct += 1
+                    if end_index == gold_end:
+                        end_num_exact_correct += 1
+                    
+                    number_indices += 1
+                    correct_preds += overlap
+                    total_preds += len(x)
+                    total_correct += len(y)
+
+            start_exact_match = start_num_exact_correct/number_indices
+            end_exact_match = end_num_exact_correct/number_indices
             p = correct_preds / total_preds if correct_preds > 0 else 0
             r = correct_preds / total_correct if correct_preds > 0 else 0
             f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
@@ -236,10 +260,10 @@ class SequencePredictor():
             f.write('bill_length: %d \n' % self.bill_length)
             f.write('bill_file: %s \n' % self.train_data_file)
             f.write('dev_file: %s \n' % self.dev_data_file)
-            f.write("Epoch exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f \n" % (exact_match,p, r, f1))
+            f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
             f.close()
         
-        return exact_match, (p, r, f1)
+        return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
@@ -257,8 +281,6 @@ class SequencePredictor():
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
-            #print start_labels
-            #print start_labels
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
             prog.update(count + 1, [("train loss", max(loss))])
             count += 1
@@ -266,7 +288,7 @@ class SequencePredictor():
 
         print("Evaluating on development data")
         exact_match, entity_scores = self.evaluate(sess)
-        print("Entity level exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match, entity_scores[0], entity_scores[1], entity_scores[2])
+        print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
         return f1
@@ -312,6 +334,10 @@ def build_model(embedding_wrapper):
             model.fit(session, saver)
 
 def main():
+    if save_results:
+        mydir = os.path.join(os.getcwd(), train_name)
+        os.makedirs(mydir)
+
     embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()

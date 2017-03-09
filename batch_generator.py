@@ -39,9 +39,9 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             
             end_index_one_hot = [0] * MAX_BILL_LENGTH
             if end_index >= MAX_BILL_LENGTH:
-                end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                start_index_one_hot[MAX_BILL_LENGTH - 1] = 1
             else:
-                end_index_one_hot[end_index] = 1
+                start_index_one_hot[end_index] = 1
 
             padded_start_indices.append(start_index_one_hot)
             padded_end_indices.append(end_index_one_hot)
