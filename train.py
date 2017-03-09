@@ -118,8 +118,8 @@ class SequencePredictor():
         return preds
 
     def add_loss_op(self, preds):
-        print "preds: ", preds
-        print "labels: ", self.start_index_labels_placeholder
+        # print "preds: ", preds
+        # print "labels: ", self.start_index_labels_placeholder
 
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
         #masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
@@ -167,8 +167,8 @@ class SequencePredictor():
                 f.write(summary + ' \n')
                 f.write(gold_summary + ' \n')
 
-                print index_max1
-                print gold_start
+                print "our guess: ", index_max1
+                print "gold_start: ", gold_start
 
                 if index_max1 == gold_start:
                     correct_preds += 1
@@ -213,7 +213,7 @@ class SequencePredictor():
             #print start_labels
             #print start_labels
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
-            prog.update(count + 1, [])
+            prog.update(count + 1, [("train loss", max(loss))])
             count += 1
         print("")
 
