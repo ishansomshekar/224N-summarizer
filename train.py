@@ -144,7 +144,8 @@ class SequencePredictor():
         return batch_preds
 
     def evaluate(self, sess):
-        correct_preds, total_correct, total_preds = 0., 0., 0.
+        correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+        num_exact_correct = 0
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
         file_name = 'model_results' + str(time.time()) + ".txt"
@@ -170,17 +171,21 @@ class SequencePredictor():
                 print "our guess: ", index_max1
                 print "gold_start: ", gold_start
 
+                summary_bag = set(summary)
+                gold_summary_bag = set(gold_summary)
                 if index_max1 == gold_start:
-                    correct_preds += 1
-                total_preds += 1
-                total_correct += 1
+                    num_exact_correct += 1
+                correct_preds += len(gold_summary_bag.intersection(summary_bag))
+                total_preds += len(summary_bag)
+                total_correct += len(gold_summary_bag)
+                number_indices += 1
 
+            exact_match = num_exact_correct/number_indices
             p = correct_preds / total_preds if correct_preds > 0 else 0
             r = correct_preds / total_correct if correct_preds > 0 else 0
             f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
             gold_standard.close()
-
 
             f.write('Model results: \n')
             f.write('learning rate: %d \n' % self.lr)
@@ -189,10 +194,10 @@ class SequencePredictor():
             f.write('bill_length: %d \n' % self.bill_length)
             f.write('bill_file: %s \n' % self.train_data_file)
             f.write('dev_file: %s \n' % self.dev_data_file)
-            f.write("Epoch P/R/F1: %.2f/%.2f/%.2f \n" % (p, r, f1))
+            f.write("Epoch exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f \n" % (exact_match,p, r, f1))
             f.close()
         
-        return (p, r, f1)
+        return exact_match, (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
@@ -218,8 +223,8 @@ class SequencePredictor():
         print("")
 
         print("Evaluating on development data")
-        entity_scores = self.evaluate(sess)
-        print("Entity level P/R/F1: %.2f/%.2f/%.2f", entity_scores[0], entity_scores[1], entity_scores[2])
+        exact_match, entity_scores = self.evaluate(sess)
+        print("Entity level exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match, entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
         return f1
