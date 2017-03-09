@@ -85,6 +85,45 @@ class SequencePredictor():
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
         return bill_embeddings
 
+
+    def attention_prediction_op(self, bill_embeddings):
+        with tf.variable_scope("encoder"):
+            enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        
+        with tf.variable_scope("backwards_encoder"):
+            dims = [False, False, True]
+            reverse_embeddings = tf.reverse(bill_embeddings, dims) 
+            bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        
+        complete_outputs = tf.concat(2, [outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
+
+
+        ## Now encode the "query", but in this case some bag of words/keywords
+
+
+        with tf.variable_scope('query'):
+            fw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            bw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+
+            (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, KEYWORD_EMBEDDING, SEQUENCE_LENGTH)
+
+            keyword = tf.concat([o_fw, o_bw], 2)
+
+
+
+        with tf.variable_scope('attention_mechanism'):
+            W_1 = tf.get_variable('W_1', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            W_2 = tf.get_variable('W_2', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
+            m_t = tf.nn.tanh(tf.matmul(W_1, complete_outputs) + tf.matmul(W_2, keyword))
+            s_t = tf.nn.softmax(m_t)
+            
+
+
+
+
     def add_unidirectional_prediction_op(self, bill_embeddings):          
         #use hidden states in encoder to make a predictions
         with tf.variable_scope("encoder"):
@@ -122,6 +161,8 @@ class SequencePredictor():
         # print "labels: ", self.start_index_labels_placeholder
 
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
+
+        # loss_2 tf.nn.softmax_cross_entropy_with_logits(preds, self.end_index_labels_placeholder)
         #masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
         loss = loss_1
         self.loss = loss     
@@ -151,6 +192,7 @@ class SequencePredictor():
         file_name = 'model_results' + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for batch_preds in self.output(sess):
+                print batch_preds
                 start_index_prediction = batch_preds[0]
                 gold = gold_standard.readline()
                 gold = gold.split()
