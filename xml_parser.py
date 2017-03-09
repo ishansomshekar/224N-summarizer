@@ -95,7 +95,7 @@ def main(args):
                     keywords = process_xml_subjects(address)
 
                     index_start = address.rfind('/') + 1
-                    index_end = address.rfind('_')
+                    index_end = address.rfind('.')
                     file_name = address[index_start:index_end]
                     keywords.insert(0, file_name)
                     writer.writerow(keywords)
