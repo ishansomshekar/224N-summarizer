@@ -31,9 +31,9 @@ class SequencePredictor():
 
         self.glove_dim = 200
         self.num_epochs = 10
-        self.bill_length = 500
+        self.bill_length = 400
         self.keywords_length = 5
-        self.lr = 0.0005
+        self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
