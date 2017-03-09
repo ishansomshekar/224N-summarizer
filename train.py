@@ -32,6 +32,7 @@ class SequencePredictor():
         self.glove_dim = 200
         self.num_epochs = 10
         self.bill_length = 500
+        self.keywords_length = 5
         self.lr = 0.0005
         self.inputs_placeholder = None
         self.summary_input = None
@@ -45,32 +46,36 @@ class SequencePredictor():
 
         self.start_index_labels_placeholder = None
         self.end_index_labels_placeholder = None
+        self.keywords_placeholder = None
         self.embedding_wrapper = embedding_wrapper
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = 'bills_data_100_test.txt'#"train_bills_2context.txt"
-        self.train_summary_data_file = "extracted_data_full.txt"#'train_bills_2summaries.txt'
-        self.train_indices_data_file = "train_indices_data_full.txt" #'train_bills_2indices.txt'
-        self.train_sequence_data_file = "train_sequence_lengths.txt" #'train_bills_2sequences.txt'
+        self.train_data_file = "train_bills_3_context.txt"
+        self.train_summary_data_file = "train_bills_3_summaries.txt"
+        self.train_indices_data_file = "train_bills_3_indices.txt"
+        self.train_sequence_data_file = "train_bills_3_sequences.txt"
+        self.train_keyword_data_file = "train_bills_3_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  'dev_bill_data_100.txt'#"dev_bills_2context.txt"
-        self.dev_summary_data_file =  "extracted_data_full.txt" #"dev_bills_2summaries.txt"
-        self.dev_indices_data_file = "dev_indices_data_full.txt" #"dev_bills_2indices.txt"
-        self.dev_sequence_data_file = "dev_sequence_lengths.txt" #"dev_bills_2sequences.txt"
+        self.dev_data_file =  "dev_bills_3_context.txt"
+        self.dev_summary_data_file =  "dev_bills_3_summaries.txt"
+        self.dev_indices_data_file = "dev_bills_3_indices.txt"
+        self.dev_sequence_data_file = "dev_bills_3_sequences.txt"
+        self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
 
-    def create_feed_dict(self, inputs_batch, masks_batch, sequences, start_labels_batch = None, end_labels_batch = None):
+    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
             self.inputs_placeholder : inputs_batch,
             self.mask_placeholder : masks_batch,
-            self.sequences_placeholder : sequences
+            self.sequences_placeholder : sequences,
+            self.keywords_placeholder : keywords_batch
             }
         if start_labels_batch is not None:
             feed_dict[self.start_index_labels_placeholder] = start_labels_batch
@@ -84,19 +89,21 @@ class SequencePredictor():
         self.start_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.end_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
+        self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
         data = np.load('trimmed_glove.6B.200d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
-        return bill_embeddings
-
-
-    def attention_prediction_op(self, bill_embeddings):
+        keywords_embeddings = tf.nn.embedding_lookup(embeddings, self.keywords_placeholder)
+        keywords_embeddings = tf.reshape(keywords_embeddings, (-1, self.keywords_length, self.glove_dim))
+        return bill_embeddings, keywords_embeddings
+    
+    def attention_prediction_op(self, bill_embeddings, keywords_embeddings):
         with tf.variable_scope("encoder"):
             enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+            f_outputs, f_state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
         with tf.variable_scope("backwards_encoder"):
             dims = [False, False, True]
@@ -104,19 +111,47 @@ class SequencePredictor():
             bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
             b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        complete_outputs = tf.concat(2, [outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
-
-
-        ## Now encode the "query", but in this case some bag of words/keywords
+        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
+        output = tf.concat([f_outputs, f_state], 2)
 
 
         with tf.variable_scope('query'):
             fw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
             bw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
 
-            (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, KEYWORD_EMBEDDING, SEQUENCE_LENGTH)
-
+            (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
             keyword = tf.concat([o_fw, o_bw], 2)
+
+
+
+        enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        _ , (o_fw, o_bw) = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, bill_embeddings, sequences_placeholder)
+        output = tf.concat([o_fw, o_bw], 2)
+
+        enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size) ## initialize with last state of query
+        dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
+
+
+        
+
+
+        (query_fw, query_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        keyword = tf.concat([query_fw, query_bw], 2)
+
+
+        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        initial_state = tf.zeros(shape = (self.batch_size, self.hidden_size))
+        outputs, state = attention_decoder(output, initial_state, keywords_embeddings)
+
+        # complete_outputs = tf.concat(2, [f_outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
+
+
+        ## Now encode the "query", but in this case some bag of words/keywords
+
+        
 
 
 
@@ -126,7 +161,12 @@ class SequencePredictor():
 
             m_t = tf.nn.tanh(tf.matmul(W_1, complete_outputs) + tf.matmul(W_2, keyword))
             s_t = tf.nn.softmax(m_t)
+
             
+
+
+
+
 
 
 
@@ -184,8 +224,8 @@ class SequencePredictor():
         batch_preds = []
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
-        for inputs,start_index_labels,end_index_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.batch_size, self.bill_length):
-            preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences)
+        for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
+            preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
             batch_preds.append(list(preds_))
             prog.update(count + 1, [])
             count +=1
@@ -226,10 +266,10 @@ class SequencePredictor():
                     f.write(summary + ' \n')
                     f.write(gold_summary + ' \n')
 
-                    print "our start guess: ", start_index
-                    print "gold_start: ", gold_start
-                    print "our end guess: ", end_index
-                    print "gold_end: ", gold_end
+                    # print "our start guess: ", start_index
+                    # print "gold_start: ", gold_start
+                    # print "our end guess: ", end_index
+                    # print "gold_end: ", gold_end
 
                     x = range(start_index,end_index + 1)
                     y = range(gold_start,gold_end + 1)
@@ -267,23 +307,23 @@ class SequencePredictor():
         
         return (start_exact_match, end_exact_match), (p, r, f1)
     
-    def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch)
+    def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch)
         predictions = sess.run(self.predictions, feed_dict=feed)
         return predictions
 
-    def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch):
+    def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
         #print start_labels_batch
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch)
         ##### THIS IS SO CONFUSING ######
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
-	return loss
+        return loss
 
     def run_epoch(self, sess):
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
-        for inputs,start_labels, end_labels, masks, sequences in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.batch_size, self.bill_length):
-            loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences)
+        for inputs,start_labels, end_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
+            loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", max(loss))])
             count += 1
         print("")
@@ -311,13 +351,13 @@ class SequencePredictor():
 
     def initialize_model(self):
         self.add_placeholders()
-        bill_embeddings = self.return_embeddings()
+        bill_embeddings, keywords_embeddings = self.return_embeddings()
         if UNIDIRECTIONAL_FLAG:
             logger.info("Running unidirectional...",)
             preds = self.add_unidirectional_prediction_op(bill_embeddings)
         else:
             logger.info("Running attentive...",)
-            preds = self.add_attentive_predictor(bill_embeddings)
+            preds = self.add_attentive_predictor(bill_embeddings, keywords_embeddings)
         loss = self.add_loss_op(preds)
         self.train_op = self.add_optimization(loss)
         return preds, loss, self.train_op
