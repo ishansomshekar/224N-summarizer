@@ -1,9 +1,9 @@
 from read_in_datafile import file_generator
 from embedding_wrapper import EmbeddingWrapper
 
-def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, batch_size, MAX_BILL_LENGTH):
+def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
-    f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path)
+    f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
 
     #pad the bills and summaries
     print "now padding and encoding batches"
@@ -11,7 +11,8 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
     padded_start_indices = []
     padded_end_indices = []
     padded_masks = []
-    for bill_batch, indices_batch, sequences in f_generator:
+    padded_keywords = []
+    for bill_batch, indices_batch, sequences, keywords in f_generator:
         # print "batch"
         # print bill_batch
         #print indices_batch
@@ -27,6 +28,9 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
                 padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
                 mask.append(False)
+
+            for i in xrange(0, 5 - len(keywords)):
+                keywords.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
             padded_masks.append(mask)
             padded_bills.append(padded_bill)
@@ -45,12 +49,14 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
 
             padded_start_indices.append(start_index_one_hot)
             padded_end_indices.append(end_index_one_hot)
+            padded_keywords.append(keywords)
 
-        yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences
+        yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
         padded_bills = []
         padded_start_indices = []
         padded_end_indices = []
         padded_masks = []
+        padded_keywords = []
 
     #convert to integers
     print "finished inputting bills and summaries"

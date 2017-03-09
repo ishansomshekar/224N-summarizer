@@ -7,9 +7,24 @@ import csv
 from os import listdir
 from os import getcwd
 
-datafile = 'bills_with_extracted.csv'
+datafile = 'bills_with_new_extracted_3.csv'
 
 def main():
+
+    keyword_dict = {}
+    with open('all_summary_words.csv', 'rb') as csvfile:
+        rows = [row for row in csv.reader(csvfile.read().splitlines())]
+        for row in rows:    
+            file_name = row[0]
+            keywords = []
+            for cell in row[1:]:
+                for word in cell.split():
+                    word = word.lower()
+                    if word != 'and' and word != 'or' and word != 'of' and word != 'to' and word.find('congress')==-1:
+                        keywords.append(word)
+
+            keyword_dict[file_name] = keywords[:5]
+
     file_names_to_data = dict()
     count = 0
     with open(datafile, 'rb') as csvfile:
@@ -34,20 +49,44 @@ def main():
 
     print "creating CSV files"
 
-    with open('train_bills.csv', 'wb') as csvfile1:
+    with open('train_bills_3.csv', 'wb') as csvfile1:
         writer1 = csv.writer(csvfile1)
         for bill_name in train:
-            row = [bill_name] + file_names_to_data[bill_name]
+            keywords = keyword_dict[bill_name]
+            keywords = ' '.join(keywords)
+            keywords.replace("\n", "")
+
+            data_body = file_names_to_data[bill_name]
+            if len(data_body) == 6:        
+                data_body.append(0)
+            row = [bill_name] + data_body + [keywords]
             writer1.writerow(row)
-    with open('test_bills.csv', 'wb') as csvfile2:
+    
+    with open('test_bills_3.csv', 'wb') as csvfile2:
         writer2 = csv.writer(csvfile2)
+
         for bill_name in test:
-            row = [bill_name] + file_names_to_data[bill_name]
+            keywords = keyword_dict[bill_name]
+            keywords = ' '.join(keywords)
+            keywords.replace("\n", "")    
+
+            data_body = file_names_to_data[bill_name]
+            if len(data_body) == 6:        
+                data_body.append(0)
+            row = [bill_name] + data_body + [keywords]
             writer2.writerow(row)
-    with open('dev_bills.csv', 'wb') as csvfile3:
+    
+    with open('dev_bills_3.csv', 'wb') as csvfile3:
         writer3 = csv.writer(csvfile3)
         for bill_name in evalu:
-            row = [bill_name] + file_names_to_data[bill_name]
+            keywords = keyword_dict[bill_name]
+            keywords = ' '.join(keywords)
+            keywords.replace("\n", "")   
+
+            data_body = file_names_to_data[bill_name]
+            if len(data_body) == 6:        
+                data_body.append(0)
+            row = [bill_name] + data_body + [keywords]
             writer3.writerow(row)
 
     print("Finished splitting dataset!")
