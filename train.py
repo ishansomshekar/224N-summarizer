@@ -8,6 +8,7 @@ import heapq
 import logging
 import time
 from attention_decoder import attention_decoder
+from evaluate_prediction import normalize_answer
 
 from util import Progbar
 
@@ -48,18 +49,18 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = 'bills_data_100_test.txt'#"train_data_extracted_full.txt"
-        self.train_summary_data_file = "extracted_data_full.txt"
-        self.train_indices_data_file = "train_indices_data_full.txt"
-        self.train_sequence_data_file = "train_sequence_lengths.txt"
+        self.train_data_file = 'bills_data_100_test.txt'#"train_bills_2context.txt"
+        self.train_summary_data_file = "extracted_data_full.txt"#'train_bills_2summaries.txt'
+        self.train_indices_data_file = "train_indices_data_full.txt" #'train_bills_2indices.txt'
+        self.train_sequence_data_file = "train_sequence_lengths.txt" #'train_bills_2sequences.txt'
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  'dev_bill_data_100.txt'#"dev_data_extracted_full.txt"
-        self.dev_summary_data_file =  "extracted_data_full.txt"
-        self.dev_indices_data_file = "dev_indices_data_full.txt"
-        self.dev_sequence_data_file = "dev_sequence_lengths.txt"
+        self.dev_data_file =  'dev_bill_data_100.txt'#"dev_bills_2context.txt"
+        self.dev_summary_data_file =  "extracted_data_full.txt" #"dev_bills_2summaries.txt"
+        self.dev_indices_data_file = "dev_indices_data_full.txt" #"dev_bills_2indices.txt"
+        self.dev_sequence_data_file = "dev_sequence_lengths.txt" #"dev_bills_2sequences.txt"
 
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
@@ -201,6 +202,7 @@ class SequencePredictor():
                 for preds in batch_preds:
                     index_prediction = preds
                     gold = gold_standard.readline()
+                    gold = normalize_answer(gold)
                     gold = gold.split()
                     gold_start = int(gold[0])
                     gold_end = int(gold[1])
