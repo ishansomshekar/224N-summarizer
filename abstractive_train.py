@@ -101,63 +101,94 @@ class AbstractivePredictor():
         return bill_embeddings, keywords_embeddings
     
     def attention_prediction_op(self, bill_embeddings, keywords_embeddings):
-        with tf.variable_scope("encoder"):
-            enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            f_outputs, f_state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        with tf.variable_scope('attn_encoder'):
+            enc_cell_ = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            outputs, f_state = tf.nn.dynamic_rnn(enc_cell_,keywords_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        with tf.variable_scope("backwards_encoder"):
+        with tf.variable_scope("attn_backwards_encoder"):
             dims = [False, False, True]
-            reverse_embeddings = tf.reverse(bill_embeddings, dims) 
-            bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+            reverse_embeddings = tf.reverse(keywords_embeddings, dims) 
+            bck_cell_ = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell_,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
-        output = tf.concat([f_outputs, f_state], 2)
+            keyword = tf.concat(2, [f_state, b_state]) #h_t is (batch_size, hiddensize *2 )
+            # keyword = tf.concat(final_states, 2)
+            print keyword
+
+        state = f_state
+        hidden_states = []
+        with tf.variable_scope('bill_encoder'):
+            cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+            for time_step in xrange(self.bill_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                o_t, h_t = cell(bill_embeddings[:, time_step, :], state)
+                hidden_states.append(h_t)
 
 
-        with tf.variable_scope('query'):
-            fw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            bw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-
-            (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
-            keyword = tf.concat([o_fw, o_bw], 2)
-
-
-
-        enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-        dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-        _ , (o_fw, o_bw) = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, bill_embeddings, sequences_placeholder)
-        output = tf.concat([o_fw, o_bw], 2)
-
-        enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size) ## initialize with last state of query
-        dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
-
-
-        
-
-
-        (query_fw, query_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
-        keyword = tf.concat([query_fw, query_bw], 2)
-
-
-        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
-        (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
-        initial_state = tf.zeros(shape = (self.batch_size, self.hidden_size))
-        outputs, state = attention_decoder(output, initial_state, keywords_embeddings)
-
-        # complete_outputs = tf.concat(2, [f_outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
-
-
-        ## Now encode the "query", but in this case some bag of words/keywords
-
-
-        with tf.variable_scope('attention_mechanism'):
             W_1 = tf.get_variable('W_1', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             W_2 = tf.get_variable('W_2', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-            m_t = tf.nn.tanh(tf.matmul(W_1, complete_outputs) + tf.matmul(W_2, keyword))
+            m_t = tf.nn.tanh(tf.matmul(W_1, ) + tf.matmul(W_2, keyword))
             s_t = tf.nn.softmax(m_t)
+        
+        # with tf.variable_scope("encoder"):
+        #     enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        #     f_outputs, f_state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        
+        # with tf.variable_scope("backwards_encoder"):
+        #     dims = [False, False, True]
+        #     reverse_embeddings = tf.reverse(bill_embeddings, dims) 
+        #     bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        #     b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        
+        # (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
+        # output = tf.concat([f_outputs, f_state], 2)
+
+
+        # with tf.variable_scope('query'):
+        #     fw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        #     bw_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+
+        #     (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        #     keyword = tf.concat([o_fw, o_bw], 2)
+
+
+
+        # enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        # dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        # _ , (o_fw, o_bw) = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, bill_embeddings, sequences_placeholder)
+        # output = tf.concat([o_fw, o_bw], 2)
+
+        # enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size) ## initialize with last state of query
+        # dec_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+        # (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(enc_cell, dec_cell, bill_embeddings, sequences_placeholder = 5)
+
+
+        
+
+
+        # (query_fw, query_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        # keyword = tf.concat([query_fw, query_bw], 2)
+
+
+        # (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        # (o_fw, o_bw), _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, keywords_embeddings, sequences_placeholder = 5)
+        # initial_state = tf.zeros(shape = (self.batch_size, self.hidden_size))
+        # outputs, state = attention_decoder(output, initial_state, keywords_embeddings)
+
+        # # complete_outputs = tf.concat(2, [f_outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
+
+
+        # ## Now encode the "query", but in this case some bag of words/keywords
+
+
+        # with tf.variable_scope('attention_mechanism'):
+        #     W_1 = tf.get_variable('W_1', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+        #     W_2 = tf.get_variable('W_2', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
+        #     m_t = tf.nn.tanh(tf.matmul(W_1, complete_outputs) + tf.matmul(W_2, keyword))
+        #     s_t = tf.nn.softmax(m_t)
 
             
 
