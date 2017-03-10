@@ -9,7 +9,7 @@ import logging
 import time
 from attention_decoder import attention_decoder
 from evaluate_prediction import normalize_answer
-# from pointer_network import PointerCell
+#from pointer_network import PointerCell
 
 from util import Progbar
 
@@ -32,13 +32,13 @@ class SequencePredictor():
 
         self.glove_dim = 200
         self.num_epochs = 10
-        self.bill_length = 400
+        self.bill_length = 30
         self.keywords_length = 5
         self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
-        self.hidden_size = 20
+        self.hidden_size = 10
         self.predictions = []
         self.batch_size = 50
         self.model_output = os.getcwd() + "model.weights"
@@ -87,8 +87,8 @@ class SequencePredictor():
     def add_placeholders(self):
         self.inputs_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
         self.mask_placeholder = tf.placeholder(tf.bool, shape=(None, self.bill_length))
-        self.start_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None, self.bill_length))
-        self.end_index_labels_placeholder = tf.placeholder(tf.int32, shape=(None,self.bill_length))
+        self.start_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None, self.bill_length))
+        self.end_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None,self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
@@ -113,7 +113,7 @@ class SequencePredictor():
             bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
             b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        complete_outputs = tf.concat(2, [outputs, b_outputs]) #h_t is (batch_size, hiddensize *2 )
+        complete_outputs = tf.concat(2, [outputs, b_outputs]) #h_t is (batch_size, hidden_size *2 )
 
         preds_start = []
         preds_end = []
@@ -133,91 +133,107 @@ class SequencePredictor():
         preds_start = tf.squeeze(preds_start)
         preds_end = tf.squeeze(preds_end)
 
-        _, start_indexes = tf.nn.top_k(preds_start,1)
-        _, end_indexes = tf.nn.top_k(preds_end, 1)
-        preds = (start_indexes,end_indexes)
-
-        print preds_start
-        self.predictions = preds
+        self.predictions = preds_start, preds_end
         return preds_start, preds_end
 
     def add_pointer_prediction_op(self, bill_embeddings):          
         #use hidden states in encoder to make a predictions
+        forward_hidden_states = []
+        # initial_state = tf.nn.rnn_cell.RNNCell.zero_state(self.batch_size, dtype=tf.float64)
+
         with tf.variable_scope("encoder"):
             enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
-        
+            initial_state = enc_cell.zero_state(self.batch_size, dtype=tf.float64)
+            for time_step in xrange(self.bill_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                o_t, h_t = enc_cell(bill_embeddings[:, time_step, :], initial_state)
+                forward_hidden_states.append(h_t)
+            #outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+        backwards_hidden_states = []
+        # initial_state = tf.nn.rnn_cell.RNNCell.zero_state(self.batch_size, dtype=tf.float64)
         with tf.variable_scope("backwards_encoder"):
             dims = [False, False, True]
             reverse_embeddings = tf.reverse(bill_embeddings, dims) 
             bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+            initial_state = bck_cell.zero_state(self.batch_size, dtype=tf.float64)
+            for time_step in xrange(self.bill_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                o_t, h_t = bck_cell(reverse_embeddings[:, time_step, :], initial_state)
+                backwards_hidden_states.append(h_t)
         
-        complete_outputs = tf.concat(2, [outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
+        forward_hidden_states = [tf.concat(1, [hidden_state[0], hidden_state[1]]) for hidden_state in forward_hidden_states]
+        forward_hidden_states = tf.pack(forward_hidden_states) #should now be (batch_size, bill_length, hidden_size)
+        forward_hidden_states = tf.transpose(forward_hidden_states, [1, 0, 2])
+        backwards_hidden_states = [tf.concat(1, [hidden_state[0], hidden_state[1]]) for hidden_state in backwards_hidden_states]
+        backwards_hidden_states = tf.pack(backwards_hidden_states) #should now be (batch_size, bill_length, hidden_size)
+        backwards_hidden_states = tf.transpose(backwards_hidden_states, [1, 0, 2])
+        complete_hidden_states = tf.concat(2, [forward_hidden_states, backwards_hidden_states] ) #should be (batch_size, bill_length, hiddensize * 4 )
+        # print forward_hidden_states
+        # print backwards_hidden_states
+        #print complete_hidden_states
 
         preds = []
-        bills = []
         with tf.variable_scope("decoder"):
-            cell = PointerCell()
-            for i in xrange(self.bill_length):
-                if i > 0:
+            cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
+            state = cell.zero_state(self.batch_size, dtype=tf.float64)
+            W1 = tf.get_variable('W1', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
+            W2 = tf.get_variable('W2', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            vt = tf.get_variable('vt', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
+            for time_step in xrange(self.bill_length):
+                if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                o_t, h_t = cell(x[:, time_step, :], state)
-                o_drop_t = tf.nn.dropout(o_t, dropout_rate)
-                pred = tf.matmul(o_drop_t, U) + b2
-                preds.append(pred)
-                state = h_t
+               
+                o_t, h_t = cell(bill_embeddings[:, time_step, :], state) # o_t is batch_size, 1
+                x = tf.matmul(W1, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
+                y = tf.matmul(W2, o_t) # result is 1 , hidden_size*4
+                u = tf.nn.tanh(x + y) #(batch_size, hidden_size * 4)
+                p = tf.matmul(u, vt) #(batch_size, bill_length)
 
-                bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
-                result = tf.matmul(bill, U_1) + b2_1
-                result = tf.nn.sigmoid(result)
-                preds.append(result)
-                bills.append(bill)
+                preds.append(tf.nn.softmax(p))
         preds = tf.pack(preds)
         preds = tf.squeeze(preds)
-        preds = tf.nn.sigmoid(preds)
-
-        # _, indices = tf.nn.top_k(preds, 2)
-        # preds = indices
-        # preds = tf.cast(preds, tf.float32)
-
+        preds = tf.transpose(preds,[1,0])
         self.predictions = preds
         return preds
 
     def add_loss_op(self, preds):
-        print preds
-        start_indexes = preds[0]
-        end_indexes = preds[1]
-        # start_diff = tf.subtract(self.start_index_labels_placeholder,start_indexes)
-        # total_start_loss = tf.nn.l2_loss(tf.cast(start_diff, dtype = tf.float32))
-        # end_diff = tf.subtract(self.end_index_labels_placeholder,end_indexes)
-        # total_end_loss = tf.nn.l2_loss(tf.cast(end_diff, dtype = tf.float32))
-        # # total_start_loss = tf.reduce_sum(total_start_loss)
-        # # total_end_loss = tf.reduce_sum(total_end_loss)
-        # print total_start_loss
-        # print total_end_loss
-        # self.loss = tf.add(total_start_loss,total_end_loss)    
-        # return tf.add(total_start_loss,total_end_loss)   
-        loss_1 = tf.nn.softmax_cross_entropy_with_logits(start_indexes, self.start_index_labels_placeholder)
-        loss_2 = tf.nn.softmax_cross_entropy_with_logits(end_indexes, self.end_index_labels_placeholder)
-        total_loss = tf.add(loss_1, loss_2)
-        self.loss = total_loss
+        # start_indexes = tf.cast(preds[0], tf.float64)
+        # end_indexes = tf.cast(preds[1], tf.float64)
+        # start_indexes = tf.argmax(start_indexes, 1)
+        # end_indexes = tf.argmax(end_indexes, 1)
+        # start_indexes = tf.cast(start_indexes, dtype = tf.float64)
+        # end_indexes = tf.cast(end_indexes, dtype = tf.float64)
+
+        # label_start_indexes = tf.argmax(self.start_index_labels_placeholder, 1)
+        # label_end_indexes = tf.argmax(self.end_index_labels_placeholder, 1)
+        # label_start_indexes = tf.cast(label_start_indexes, dtype = tf.float64)
+        # label_end_indexes = tf.cast(label_end_indexes, dtype = tf.float64)
+        # print label_start_indexes
+        # print label_end_indexes
+
+        # print start_indexes
+        # print end_indexes
+
+        # start_diff = tf.subtract(label_start_indexes,start_indexes)
+        # total_start_loss = tf.nn.l2_loss(start_diff)
+        # end_diff = tf.subtract(label_end_indexes,end_indexes)
+        # total_end_loss = tf.nn.l2_loss(end_diff)
+        # total_start_loss = tf.reduce_mean(total_start_loss)
+        # total_end_loss = tf.reduce_mean(total_end_loss)
+
+        # self.loss = total_start_loss + total_end_loss
+        # return tf.add(total_start_loss, total_end_loss)
 
 
-        label_start_indexes = tf.nn.top_k(self.start_index_labels_placeholder, 1)
-        label_end_indexes = tf.nn.top_k(self.end_index_labels_placeholder, 1)
-        end_indexes = preds[1]
-        start_indexes = preds[0]
-        start_diff = tf.subtract(label_start_indexes,start_indexes)
-        total_start_loss = tf.nn.l2_loss(tf.cast(start_diff, dtype = tf.float32))
-        end_diff = tf.subtract(label_end_indexes,end_indexes)
-        total_end_loss = tf.nn.l2_loss(tf.cast(end_diff, dtype = tf.float32))
-        total_start_loss = tf.reduce_sum(total_start_loss)
-        total_end_loss = tf.reduce_sum(total_end_loss)
-
-
-
-        return total_loss
+        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
+        # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
+        loss = loss_1
+        self.loss = tf.reduce_mean(loss)   
+        return self.loss
 
     def add_optimization(self, losses):
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
@@ -229,8 +245,6 @@ class SequencePredictor():
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
-            print start_index_labels
-            print end_index_labels
             preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
             batch_preds.append(list(preds_))
             prog.update(count + 1, [])
@@ -330,7 +344,7 @@ class SequencePredictor():
         count = 0
         for inputs,start_labels, end_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
-            prog.update(count + 1, [("train loss", max(loss))])
+            prog.update(count + 1, [("train loss", loss)])
             count += 1
         print("")
 
@@ -358,12 +372,12 @@ class SequencePredictor():
     def initialize_model(self):
         self.add_placeholders()
         bill_embeddings, keywords_embeddings = self.return_embeddings()
-        if UNIDIRECTIONAL_FLAG:
-            logger.info("Running unidirectional...",)
-            preds = self.add_unidirectional_prediction_op(bill_embeddings)
-        else:
-            logger.info("Running attentive...",)
-            preds = self.add_attentive_predictor(bill_embeddings, keywords_embeddings)
+        # if UNIDIRECTIONAL_FLAG:
+        #     logger.info("Running unidirectional...",)
+        #     preds = self.add_unidirectional_prediction_op(bill_embeddings)
+        # else:
+        logger.info("Running attentive...",)
+        preds = self.add_pointer_prediction_op(bill_embeddings)
         loss = self.add_loss_op(preds)
         self.train_op = self.add_optimization(loss)
         return preds, loss, self.train_op
