@@ -42,6 +42,7 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             start_index_one_hot = [0] * MAX_BILL_LENGTH
             if start_index >= MAX_BILL_LENGTH:
                 start_index_one_hot[0] = 1
+                start_index = 0
             else:
                 start_index_one_hot[start_index] = 1
 
@@ -64,11 +65,12 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             #     if (start_index + idx) < len(start_index_one_hot):
             #         start_index_one_hot[start_index + idx] = value
 
-            # end_index_one_hot = [0] * MAX_BILL_LENGTH
-            # if end_index >= MAX_BILL_LENGTH:
-            #     end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
-            # else:
-            #     end_index_one_hot[end_index] = 1
+            end_index_one_hot = [0] * MAX_BILL_LENGTH
+            if end_index >= MAX_BILL_LENGTH:
+                start_index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                end_index = MAX_BILL_LENGTH - 1
+            else:
+                start_index_one_hot[end_index] = 1
 
             # for idx, value in enumerate(distrib):
             #     idx += 1
