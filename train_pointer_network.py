@@ -18,14 +18,12 @@ import tensorflow as tf
 ATTENTION_FLAG = 1
 UNIDIRECTIONAL_FLAG = True
 
-save_results = False
-
 logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 ##EDIT THIS
-train_name = '3.8 7:44pm'
+train_name = 'delete'
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -52,7 +50,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_bills_3_context.txt"
+        self.train_data_file = "bills_data_100_test.txt"
         self.train_summary_data_file = "train_bills_3_summaries.txt"
         self.train_indices_data_file = "train_bills_3_indices.txt"
         self.train_sequence_data_file = "train_bills_3_sequences.txt"
@@ -61,7 +59,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "dev_bills_3_context.txt"
+        self.dev_data_file =  "bills_data_100_test.txt"
         self.dev_summary_data_file =  "dev_bills_3_summaries.txt"
         self.dev_indices_data_file = "dev_bills_3_indices.txt"
         self.dev_sequence_data_file = "dev_bills_3_sequences.txt"
@@ -257,7 +255,7 @@ class SequencePredictor():
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
-        with open(file_name, 'a') as f:
+        with open(file_name, 'w') as f:
             for batch_preds in self.output(sess):
                 for preds in batch_preds:
                     index_prediction = preds
@@ -316,7 +314,7 @@ class SequencePredictor():
             gold_standard.close()
 
             f.write('Model results: \n')
-            f.write('learning rate: %d \n' % self.lr)
+            f.write('learning rate: %.2f \n' % self.lr)
             f.write('batch size: %d \n' % self.batch_size)
             f.write('hidden size: %d \n' % self.hidden_size)
             f.write('bill_length: %d \n' % self.bill_length)
@@ -328,7 +326,7 @@ class SequencePredictor():
         return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
         return predictions
 
@@ -396,9 +394,8 @@ def build_model(embedding_wrapper):
             model.fit(session, saver)
 
 def main():
-    if save_results:
-        mydir = os.path.join(os.getcwd(), train_name)
-        os.makedirs(mydir)
+    mydir = os.path.join(os.getcwd(), train_name)
+    os.makedirs(mydir)
 
     embedding_wrapper = EmbeddingWrapper()
     embedding_wrapper.build_vocab()
