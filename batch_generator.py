@@ -46,9 +46,9 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             
             end_index_one_hot = [0] * MAX_BILL_LENGTH
             if end_index >= MAX_BILL_LENGTH:
-                start_index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
             else:
-                start_index_one_hot[end_index] = 1
+                end_index_one_hot[end_index] = 1
 
             #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
             if (len(start_index_one_hot) > len(bill_list)):
