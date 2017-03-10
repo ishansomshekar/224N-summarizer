@@ -18,29 +18,29 @@ import tensorflow as tf
 ATTENTION_FLAG = 1
 UNIDIRECTIONAL_FLAG = True
 
-save_results = False
+save_results = True
 
 logger = logging.getLogger("hw3.q2")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 ##EDIT THIS
-train_name = '3.8 7:44pm'
+train_name = '3_10_1113pm'
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 200
+        self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 30
+        self.bill_length = 400
         self.keywords_length = 5
         self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
-        self.hidden_size = 10
+        self.hidden_size = 20
         self.predictions = []
-        self.batch_size = 50
+        self.batch_size = 20
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
@@ -93,7 +93,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.200d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -181,6 +181,8 @@ class SequencePredictor():
             W1 = tf.get_variable('W1', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
             W2 = tf.get_variable('W2', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             vt = tf.get_variable('vt', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            print W1
+            print W2
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
             for time_step in xrange(self.bill_length):
@@ -274,7 +276,7 @@ class SequencePredictor():
                     index_prediction_copy = index_prediction[:]
                     index_prediction_copy[index_max1] = 0
                     maxEnd = max(index_prediction_copy)
-                    index_max2 = index_prediction_copy.index(maxEnd)
+                    index_max2 = index_max1 + 20 #index_prediction_copy.index(maxEnd)
 
                     #switch the orders if necessary
                     start_index = min(index_max2, index_max1)
@@ -328,7 +330,7 @@ class SequencePredictor():
         return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
         return predictions
 
