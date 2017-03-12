@@ -24,7 +24,9 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 ##EDIT THIS
-train_name = '3_11_830am'
+t = time.localtime()
+timeString  = time.strftime("%Y%m%d%H%M%S", t)
+train_name = str(time.time())
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -382,10 +384,6 @@ class SequencePredictor():
     def initialize_model(self):
         self.add_placeholders()
         bill_embeddings, keywords_embeddings = self.return_embeddings()
-        # if UNIDIRECTIONAL_FLAG:
-        #     logger.info("Running unidirectional...",)
-        #     preds = self.add_unidirectional_prediction_op(bill_embeddings)
-        # else:
         logger.info("Running attentive...",)
         preds = self.add_pointer_prediction_op(bill_embeddings)
         loss = self.add_loss_op(preds)
@@ -393,21 +391,20 @@ class SequencePredictor():
         return preds, loss, self.train_op
 
 def build_model(embedding_wrapper):
-    with tf.Graph().as_default():
-        with tf.variable_scope('attentive_model'):
-            logger.info("Building model...",)
-            start = time.time()
-            model = SequencePredictor(embedding_wrapper)
-            preds, loss, train_op = model.initialize_model()
-            logger.info("took %.2f seconds", time.time() - start)
+    with tf.variable_scope('attentive_model'):
+        logger.info("Building model...",)
+        start = time.time()
+        model = SequencePredictor(embedding_wrapper)
+        preds, loss, train_op = model.initialize_model()
+        logger.info("took %.2f seconds", time.time() - start)
 
-            tf.get_variable_scope().reuse_variables()
-            init = tf.global_variables_initializer()
-            tf.get_variable_scope().reuse_variables()
-            saver = tf.train.Saver()
-            with tf.Session() as session:
-                session.run(init)
-                model.fit(session, saver)
+        tf.get_variable_scope().reuse_variables()
+        init = tf.global_variables_initializer()
+        tf.get_variable_scope().reuse_variables()
+        saver = tf.train.Saver()
+        with tf.Session() as session:
+            session.run(init)
+            model.fit(session, saver)
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)
