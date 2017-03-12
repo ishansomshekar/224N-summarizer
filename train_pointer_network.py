@@ -9,6 +9,7 @@ import logging
 import time
 from attention_decoder import attention_decoder
 from evaluate_prediction import normalize_answer
+import rougescore as rs
 #from pointer_network import PointerCell
 
 from util import Progbar
@@ -23,16 +24,16 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 ##EDIT THIS
-train_name = 'delete'
+train_name = '3_11_830am'
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 200
+        self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 30
+        self.bill_length = 50
         self.keywords_length = 5
-        self.lr = 0.001
+        self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -50,7 +51,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"
+        self.train_data_file = "train_bills_3_context.txt"
         self.train_summary_data_file = "train_bills_3_summaries.txt"
         self.train_indices_data_file = "train_bills_3_indices.txt"
         self.train_sequence_data_file = "train_bills_3_sequences.txt"
@@ -59,7 +60,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_data_100_test.txt"
+        self.dev_data_file =  "dev_bills_3_context.txt"
         self.dev_summary_data_file =  "dev_bills_3_summaries.txt"
         self.dev_indices_data_file = "dev_bills_3_indices.txt"
         self.dev_sequence_data_file = "dev_bills_3_sequences.txt"
@@ -91,7 +92,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.200d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -174,6 +175,7 @@ class SequencePredictor():
 
         preds = []
         with tf.variable_scope("decoder"):
+            # tf.get_variable_scope().reuse_variables() doesnt work because of first pass through loop
             cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
             state = cell.zero_state(self.batch_size, dtype=tf.float64)
             W1 = tf.get_variable('W1', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
@@ -192,6 +194,8 @@ class SequencePredictor():
                 p = tf.matmul(u, vt) #(batch_size, bill_length)
 
                 preds.append(tf.nn.softmax(p))
+            tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
+            assert tf.get_variable_scope().reuse == True
         preds = tf.pack(preds)
         preds = tf.squeeze(preds)
         preds = tf.transpose(preds,[1,0])
@@ -255,6 +259,7 @@ class SequencePredictor():
         gold_standard = open(self.dev_indices_data_file, 'r')
         file_dev = open(self.dev_data_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
+        # rouge_scores = []
         with open(file_name, 'w') as f:
             for batch_preds in self.output(sess):
                 for preds in batch_preds:
@@ -283,6 +288,9 @@ class SequencePredictor():
                     gold_summary = ' '.join(text.split()[gold_start:gold_end])
                     f.write(summary + ' \n')
                     f.write(gold_summary + ' \n')
+                    # if gold_summary != '':
+                    #     rouge_l_score = rs.rouge_l(summary, [gold_summary], 0.5)
+                    #     rouge_scores.append(rouge_l_score)                      
 
                     # print "our start guess: ", start_index
                     # print "gold_start: ", gold_start
@@ -312,6 +320,7 @@ class SequencePredictor():
             f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
             gold_standard.close()
+            # avg_rouge = np.mean(rouge_scores)
 
             f.write('Model results: \n')
             f.write('learning rate: %.2f \n' % self.lr)
@@ -321,6 +330,7 @@ class SequencePredictor():
             f.write('bill_file: %s \n' % self.train_data_file)
             f.write('dev_file: %s \n' % self.dev_data_file)
             f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
+            # f.write('avg rouge: %.3f \n' % avg_rouge)
             f.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
@@ -341,6 +351,7 @@ class SequencePredictor():
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
+            tf.get_variable_scope().reuse_variables()
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", loss)])
             count += 1
@@ -357,6 +368,7 @@ class SequencePredictor():
         best_score = 0.
         epoch_scores = []
         for epoch in range(self.num_epochs):
+            tf.get_variable_scope().reuse_variables()
             print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
             score = self.run_epoch(sess)
             if score > best_score:
@@ -382,16 +394,20 @@ class SequencePredictor():
 
 def build_model(embedding_wrapper):
     with tf.Graph().as_default():
-        logger.info("Building model...",)
-        start = time.time()
-        model = SequencePredictor(embedding_wrapper)
-        preds, loss, train_op = model.initialize_model()
-        logger.info("took %.2f seconds", time.time() - start)
-        init = tf.global_variables_initializer()
-        saver = tf.train.Saver()
-        with tf.Session() as session:
-            session.run(init)
-            model.fit(session, saver)
+        with tf.variable_scope('attentive_model'):
+            logger.info("Building model...",)
+            start = time.time()
+            model = SequencePredictor(embedding_wrapper)
+            preds, loss, train_op = model.initialize_model()
+            logger.info("took %.2f seconds", time.time() - start)
+
+            tf.get_variable_scope().reuse_variables()
+            init = tf.global_variables_initializer()
+            tf.get_variable_scope().reuse_variables()
+            saver = tf.train.Saver()
+            with tf.Session() as session:
+                session.run(init)
+                model.fit(session, saver)
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)
