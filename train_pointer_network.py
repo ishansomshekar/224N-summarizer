@@ -32,7 +32,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 151
+        self.bill_length = 70
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -119,7 +119,7 @@ class SequencePredictor():
                 #generate normal distribution
                 # distrib = np.random.normal(1.0, 0.5, int(.05 * len(start_index_one_hot)))
                 # distrib = [x % 1. for x in distrib]
-                distrib = [0.75, 0.5, 0.25] * int(0.05 * len(start_index_one_hot))
+                distrib = [0.75, 0.5, 0.25]
                 print "distrb: "
                 print distrib
                 distrib = sorted(distrib, reverse = True)
@@ -306,12 +306,13 @@ class SequencePredictor():
         preds_end = tf.squeeze(preds_end)
         preds_end = tf.transpose(preds_end,[1,0])
         self.predictions = (preds_start, preds_end)
-        print (preds_start, preds_end)
         return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
-        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
-        loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        #loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
+        #loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
+        loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
         loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
@@ -343,6 +344,10 @@ class SequencePredictor():
         file_name = train_name + "/" + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
+                print "start preds":
+                print start_preds
+                print "end preds: "
+                print end_preds
                 gold = gold_indices.readline()
                 # print "gold before" 
                 # print gold
