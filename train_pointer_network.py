@@ -117,8 +117,9 @@ class SequencePredictor():
                         val ^= 1
 
                 #generate normal distribution
-                distrib = np.random.normal(1.0, 0.5, int(.1 * len(start_index_one_hot)))
-                distrib = [x % 1. for x in distrib]
+                # distrib = np.random.normal(1.0, 0.5, int(.05 * len(start_index_one_hot)))
+                # distrib = [x % 1. for x in distrib]
+                distrib = [0.75, 0.5, 0.25] * int(0.05 * len(start_index_one_hot))
                 print "distrb: "
                 print distrib
                 distrib = sorted(distrib, reverse = True)
@@ -189,40 +190,40 @@ class SequencePredictor():
         keywords_embeddings = tf.reshape(keywords_embeddings, (-1, self.keywords_length, self.glove_dim))
         return bill_embeddings, keywords_embeddings
 
-    def add_unidirectional_prediction_op(self, bill_embeddings):          
-        #use hidden states in encoder to make a predictions
-        with tf.variable_scope("encoder"):
-            enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+    # def add_unidirectional_prediction_op(self, bill_embeddings):          
+    #     #use hidden states in encoder to make a predictions
+    #     with tf.variable_scope("encoder"):
+    #         enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+    #         outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        with tf.variable_scope("backwards_encoder"):
-            dims = [False, False, True]
-            reverse_embeddings = tf.reverse(bill_embeddings, dims) 
-            bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
-            b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
+    #     with tf.variable_scope("backwards_encoder"):
+    #         dims = [False, False, True]
+    #         reverse_embeddings = tf.reverse(bill_embeddings, dims) 
+    #         bck_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
+    #         b_outputs, b_state = tf.nn.dynamic_rnn(bck_cell,reverse_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         
-        complete_outputs = tf.concat(2, [outputs, b_outputs]) #h_t is (batch_size, hidden_size *2 )
+    #     complete_outputs = tf.concat(2, [outputs, b_outputs]) #h_t is (batch_size, hidden_size *2 )
 
-        preds_start = []
-        preds_end = []
-        with tf.variable_scope("decoder"):
-            U_1_start = tf.get_variable('U_1_start', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-            U_1_end = tf.get_variable('U_1_end', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-            b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-            b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-            for i in xrange(self.batch_size):
-                bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
-                result_start = tf.matmul(bill, U_1_start) + b2_1
-                result_end = tf.matmul(bill, U_1_end) + b2_2
-                preds_start.append(result_start)
-                preds_end.append(result_end)
-        preds_start = tf.pack(preds_start)
-        preds_end = tf.pack(preds_end)
-        preds_start = tf.squeeze(preds_start)
-        preds_end = tf.squeeze(preds_end)
+    #     preds_start = []
+    #     preds_end = []
+    #     with tf.variable_scope("decoder"):
+    #         U_1_start = tf.get_variable('U_1_start', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+    #         U_1_end = tf.get_variable('U_1_end', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+    #         b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+    #         b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+    #         for i in xrange(self.batch_size):
+    #             bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
+    #             result_start = tf.matmul(bill, U_1_start) + b2_1
+    #             result_end = tf.matmul(bill, U_1_end) + b2_2
+    #             preds_start.append(result_start)
+    #             preds_end.append(result_end)
+    #     preds_start = tf.pack(preds_start)
+    #     preds_end = tf.pack(preds_end)
+    #     preds_start = tf.squeeze(preds_start)
+    #     preds_end = tf.squeeze(preds_end)
 
-        self.predictions = preds_start, preds_end
-        return preds_start, preds_end
+    #     self.predictions = preds_start, preds_end
+    #     return preds_start, preds_end
 
     def add_pointer_prediction_op(self, bill_embeddings):          
         #use hidden states in encoder to make a predictions
