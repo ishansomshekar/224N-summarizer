@@ -1,7 +1,6 @@
 from embedding_wrapper import EmbeddingWrapper
 from read_in_datafile import file_generator
 import os
-from batch_generator import batch_generator
 import numpy as np
 from encoder_decoder_cells import DecoderCell
 import heapq
@@ -72,6 +71,91 @@ class SequencePredictor():
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
+
+    def batch_generator(self,embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
+
+        f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
+
+        #pad the bills and summaries
+        print "now padding and encoding batches"
+        padded_bills = []
+        padded_start_indices = []
+        padded_end_indices = []
+        padded_masks = []
+        padded_keywords = []
+        for bill_batch, indices_batch, sequences, keywords in f_generator:
+            for idx, bill in enumerate(bill_batch):
+                start_index, end_index = indices_batch[idx]
+                sequence_len = sequences[idx]
+                keywords_batch = keywords[idx]
+                bill_list = [embedding_wrapper.get_value(word) for word in bill.split()]
+                padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
+                # padded_summary = [embedding_wrapper.get_value(word) for word in summary] d g
+                mask = [True] * min(len(bill_list), MAX_BILL_LENGTH)
+                padded_bill = bill_list[:MAX_BILL_LENGTH]
+                # padded_summary = padded_summary[:MAX_SUMMARY_LENGTH]
+                mask = mask[:MAX_BILL_LENGTH]
+
+                for i in xrange(0, MAX_BILL_LENGTH - len(padded_bill)):
+                    padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
+                    mask.append(False)
+
+                for i in xrange(0, 5 - len(padded_keyword)):
+                    padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
+
+
+                start_index_one_hot = [0] * MAX_BILL_LENGTH
+                if start_index >= MAX_BILL_LENGTH:
+                    start_index_one_hot[0] = 1
+                    start_index = 0
+                else:
+                    start_index_one_hot[start_index] = 1
+
+                                #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
+                if (len(start_index_one_hot) > len(bill_list)):
+                    val = 0
+                    for i in xrange(0, len(start_index_one_hot) - sequence_len):
+                        start_index_one_hot[sequence_len + i] = val
+                        val ^= 1
+
+                #generate normal distribution
+                distrib = np.random.normal(0.6, 0.25, int(.25 * len(start_index_one_hot)))
+                distrib = [x for x in distrib if x < .95 and x > 0]
+                distrib = sorted(distrib, reverse = True)
+                #now, add around the one hot
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index - idx] = value
+                    if (start_index + idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index + idx] = value
+
+                end_index_one_hot = [0] * MAX_BILL_LENGTH
+                if end_index >= MAX_BILL_LENGTH:
+                    end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                    end_index = MAX_BILL_LENGTH - 1
+                else:
+                    end_index_one_hot[end_index] = 1
+
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index - idx] = value
+                    if (end_index + idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index + idx] = value
+
+                padded_masks.append(mask)
+                padded_bills.append(padded_bill)
+                padded_start_indices.append(start_index_one_hot)
+                padded_end_indices.append(end_index_one_hot)
+                padded_keywords.append(padded_keyword)
+
+            yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
+            padded_bills = []
+            padded_start_indices = []
+            padded_end_indices = []
+            padded_masks = []
+            padded_keywords = []
 
     def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
@@ -223,34 +307,6 @@ class SequencePredictor():
         return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
-        # start_indexes = tf.cast(preds[0], tf.float64)
-        # end_indexes = tf.cast(preds[1], tf.float64)
-        # start_indexes = tf.argmax(start_indexes, 1)
-        # end_indexes = tf.argmax(end_indexes, 1)
-        # start_indexes = tf.cast(start_indexes, dtype = tf.float64)
-        # end_indexes = tf.cast(end_indexes, dtype = tf.float64)
-
-        # label_start_indexes = tf.argmax(self.start_index_labels_placeholder, 1)
-        # label_end_indexes = tf.argmax(self.end_index_labels_placeholder, 1)
-        # label_start_indexes = tf.cast(label_start_indexes, dtype = tf.float64)
-        # label_end_indexes = tf.cast(label_end_indexes, dtype = tf.float64)
-        # print label_start_indexes
-        # print label_end_indexes
-
-        # print start_indexes
-        # print end_indexes
-
-        # start_diff = tf.subtract(label_start_indexes,start_indexes)
-        # total_start_loss = tf.nn.l2_loss(start_diff)
-        # end_diff = tf.subtract(label_end_indexes,end_indexes)
-        # total_end_loss = tf.nn.l2_loss(end_diff)
-        # total_start_loss = tf.reduce_mean(total_start_loss)
-        # total_end_loss = tf.reduce_mean(total_end_loss)
-
-        # self.loss = total_start_loss + total_end_loss
-        # return tf.add(total_start_loss, total_end_loss)
-
-
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
@@ -268,14 +324,13 @@ class SequencePredictor():
         end_preds = []
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
-        for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
+        for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
             start_, end_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
             start_preds += start_.tolist()
             end_preds += end_.tolist()
             prog.update(count + 1, [])
             count +=1
         return zip(start_preds, end_preds)
-
 
     def evaluate_two_hots(self, sess):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
@@ -467,7 +522,7 @@ class SequencePredictor():
     def run_epoch(self, sess):
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
-        for inputs,start_labels, end_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
+        for inputs,start_labels, end_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
             tf.get_variable_scope().reuse_variables()
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", loss)])
