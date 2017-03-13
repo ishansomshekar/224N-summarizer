@@ -1,5 +1,6 @@
 from read_in_datafile import file_generator
 from embedding_wrapper import EmbeddingWrapper
+import numpy as np
 
 def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
@@ -41,21 +42,47 @@ def batch_generator(embedding_wrapper, bill_data_path, indices_data_path, sequen
             start_index_one_hot = [0] * MAX_BILL_LENGTH
             if start_index >= MAX_BILL_LENGTH:
                 start_index_one_hot[0] = 1
+                start_index = 0
             else:
                 start_index_one_hot[start_index] = 1
-            
-            end_index_one_hot = [0] * MAX_BILL_LENGTH
-            if end_index >= MAX_BILL_LENGTH:
-                end_index_one_hot[MAX_BILL_LENGTH - 1] = 1
-            else:
-                end_index_one_hot[end_index] = 1
 
-            #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
+                            #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
             if (len(start_index_one_hot) > len(bill_list)):
                 val = 0
                 for i in xrange(0, len(start_index_one_hot) - sequence_len):
                     start_index_one_hot[sequence_len + i] = val
                     val ^= 1
+
+            #generate normal distribution
+            # distrib = np.random.normal(0.6, 0.25, int(.25 * len(start_index_one_hot)))
+            # distrib = [x for x in distrib if x < .95 and x > 0]
+            # distrib = sorted(distrib, reverse = True)
+            # #now, add around the two one hots
+            # for idx, value in enumerate(distrib):
+            #     idx += 1
+            #     if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+            #         start_index_one_hot[start_index - idx] = value
+            #     if (start_index + idx) < len(start_index_one_hot):
+            #         start_index_one_hot[start_index + idx] = value
+
+            end_index_one_hot = [0] * MAX_BILL_LENGTH
+            if end_index >= MAX_BILL_LENGTH:
+                start_index_one_hot[MAX_BILL_LENGTH - 1] = 1
+                end_index = MAX_BILL_LENGTH - 1
+            else:
+                start_index_one_hot[end_index] = 1
+
+            # for idx, value in enumerate(distrib):
+            #     idx += 1
+            #     if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+            #         end_index_one_hot[end_index - idx] = value
+            #     if (end_index + idx) < len(end_index_one_hot):
+            #         end_index_one_hot[end_index + idx] = value
+
+            # print end_index_one_hot
+
+            # print start_index_one_hot
+            # print
 
             # print "seq_len",sequence_len
             # print "number of words in bill: ", len(bill_list)
