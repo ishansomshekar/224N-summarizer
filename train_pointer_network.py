@@ -299,18 +299,18 @@ class SequencePredictor():
                 
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
-                u_start = tf.nn.relu(x_start + y_start) #(batch_size, hidden_size * 4)
+                u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
-                tf.summary.histogram('p_start', p_start)
+                #tf.summary.histogram('p_start', p_start)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
-                u_end = tf.nn.relu(x_end + y_end) #(batch_size, hidden_size * 4)
+                u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
-                tf.summary.histogram('p_end', p_end)
+                #tf.summary.histogram('p_end', p_end)
 
                 preds_start.append(p_start)
-                preds_end.append(tf.nn.softmax(p_start))
+                preds_end.append(p_end)
                 # preds_start.append(tf.nn.softmax(p_start))
                 # preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
@@ -329,8 +329,8 @@ class SequencePredictor():
         return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
-        #loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
-        #loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        # loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
+        # loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
         loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
