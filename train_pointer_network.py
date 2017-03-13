@@ -274,22 +274,22 @@ class SequencePredictor():
             # tf.get_variable_scope().reuse_variables() doesnt work because of first pass through loop
             cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
             state = cell.zero_state(self.batch_size, dtype=tf.float64)
-            W1_start = tf.get_variable('W1_start', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
-            W2_start = tf.get_variable('W2_start', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            W1_start = tf.get_variable('W1_start', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64) 
+            W2_start = tf.get_variable('W2_start', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64)
             vt_start = tf.get_variable('vt_start', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-            W1_end = tf.get_variable('W1_end', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
-            W2_end = tf.get_variable('W2_end', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            W1_end = tf.get_variable('W1_end', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64) 
+            W2_end = tf.get_variable('W2_end', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64)
             vt_end = tf.get_variable('vt_end', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
             
-            tf.summary.histogram('W1_start', W1_start)
-            tf.summary.histogram('W2_start', W1_start)
-            tf.summary.histogram('W1_end', W1_start)
-            tf.summary.histogram('W2_end', W1_start)
-            tf.summary.histogram('vt_start', W1_start)
-            tf.summary.histogram('vt_end', W1_start)
+            # tf.summary.histogram('W1_start', W1_start)
+            # tf.summary.histogram('W2_start', W1_start)
+            # tf.summary.histogram('W1_end', W1_start)
+            # tf.summary.histogram('W2_end', W1_start)
+            # tf.summary.histogram('vt_start', W1_start)
+            # tf.summary.histogram('vt_end', W1_start)
 
             for time_step in xrange(self.bill_length):
                 if time_step > 0:
@@ -309,8 +309,10 @@ class SequencePredictor():
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
                 tf.summary.histogram('p_end', p_end)
 
-                preds_start.append(tf.nn.softmax(p_start))
-                preds_end.append(tf.nn.softmax(p_end))
+                preds_start.append(p_start)
+                preds_end.append(tf.nn.softmax(p_start))
+                # preds_start.append(tf.nn.softmax(p_start))
+                # preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
             assert tf.get_variable_scope().reuse == True
 
@@ -321,32 +323,24 @@ class SequencePredictor():
         preds_end = tf.squeeze(preds_end)
         preds_end = tf.transpose(preds_end,[1,0])
         self.predictions = (preds_start, preds_end)
-<<<<<<< HEAD
-        tf.summary.histogram('start_preds', self.predictions[0])
-        tf.summary.histogram('end_preds', self.predictions[1])
+        # tf.summary.histogram('start_preds', self.predictions[0])
+        # tf.summary.histogram('end_preds', self.predictions[1])
         print (preds_start, preds_end)
-=======
->>>>>>> 6f94b7d220882d29ce02d858de0d27247df1e976
         return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
         #loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         #loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
-        #loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
+        loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-<<<<<<< HEAD
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder) + tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder))
-        self.loss = loss
-        tf.summary.histogram('start_preds', preds[0])
-        tf.summary.histogram('end_preds', preds[1])
-        tf.summary.scalar('loss',self.loss)  
-        return loss
-=======
-        loss = loss_1 #+ loss_2
+        # tf.summary.histogram('start_preds', preds[0])
+        # tf.summary.histogram('end_preds', preds[1])
+        # tf.summary.scalar('loss',self.loss)  
+
+        loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
->>>>>>> 6f94b7d220882d29ce02d858de0d27247df1e976
 
     def add_optimization(self, losses):
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
