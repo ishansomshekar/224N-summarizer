@@ -25,16 +25,16 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = str(time.time())
+train_name = "baseline_" + str(time.time())
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 20
+        self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.0001
+        self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -52,7 +52,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"#"bills_train_bills_3_150.txt" #"train_bills_3_context.txt"
+        self.train_data_file = "bills_train_bills_3_150.txt" #"train_bills_3_context.txt"
         self.train_summary_data_file = "summaries_train_bills_3_150.txt"
         self.train_indices_data_file = "indices_train_bills_3_150.txt"
         self.train_sequence_data_file = "sequences_train_bills_3_150.txt"
@@ -126,12 +126,12 @@ class SequencePredictor():
                 # print distrib
                 distrib = sorted(distrib, reverse = True)
                 #now, add around the one hot
-                # for idx, value in enumerate(distrib):
-                #     idx += 1
-                #     if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
-                #         start_index_one_hot[start_index - idx] = value
-                #     if (start_index + idx) < len(start_index_one_hot):
-                #         start_index_one_hot[start_index + idx] = value
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index - idx] = value
+                    if (start_index + idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index + idx] = value
 
                 end_index_one_hot = [0] * MAX_BILL_LENGTH
                 if end_index >= MAX_BILL_LENGTH:
@@ -140,12 +140,12 @@ class SequencePredictor():
                 else:
                     end_index_one_hot[end_index] = 1
 
-                # for idx, value in enumerate(distrib):
-                #     idx += 1
-                #     if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
-                #         end_index_one_hot[end_index - idx] = value
-                #     if (end_index + idx) < len(end_index_one_hot):
-                #         end_index_one_hot[end_index + idx] = value
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index - idx] = value
+                    if (end_index + idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index + idx] = value
 
                 padded_masks.append(mask)
                 padded_bills.append(padded_bill)
@@ -206,31 +206,45 @@ class SequencePredictor():
         
         complete_outputs = tf.concat(2, [outputs, b_outputs] ) #h_t is (batch_size, hiddensize *2 )
 
-        preds = []
-        bills = []
+        preds_start = []
+        preds_end = []
         with tf.variable_scope("decoder"):
             U_1 = tf.get_variable('U_1', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             b2_1 = tf.get_variable('b2_1', (self.bill_length,1), \
             initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
+            U_2 = tf.get_variable('U_2', (self.hidden_size * 2,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            b2_2 = tf.get_variable('b2_2', (self.bill_length,1), \
+            initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
             for i in xrange(self.batch_size):
                 bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
-                result = tf.matmul(bill, U_1) + b2_1
-                result = tf.nn.sigmoid(result)
-                preds.append(result)
-                bills.append(bill)
-        preds = tf.pack(preds)
-        preds = tf.squeeze(preds)
-        preds = tf.nn.sigmoid(preds)
-        self.predictions = preds
-        return preds
+                result_start = tf.matmul(bill, U_1) + b2_1
+                result_start = tf.nn.sigmoid(result_start)
+                preds_start.append(result_start)
+
+                result_end = tf.matmul(bill, U_2) + b2_2
+                result_end = tf.nn.sigmoid(result_end)
+                preds_end.append(result_end)
+        
+        preds_start = tf.pack(preds_start)
+        preds_start = tf.squeeze(preds_start)
+        #preds = tf.nn.sigmoid(preds)
+
+        preds_end = tf.pack(preds_end)
+        preds_end = tf.squeeze(preds_end)
+        #preds = tf.nn.sigmoid(preds)
+        self.predictions = (preds_start, preds_end)
+        return preds_start, preds_end
 
     def add_loss_op(self, preds):
-        #loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
-        #loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
-        loss_1 = tf.nn.l2_loss(preds - self.start_index_labels_placeholder)
-        #loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
+        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
+        loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        
+        # loss_1 = tf.nn.l2_loss(preds - self.start_index_labels_placeholder)
+        # #loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-        loss = loss_1 #+ loss_2
+        loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
 
@@ -245,12 +259,12 @@ class SequencePredictor():
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
-            preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
-            start_preds += preds_.tolist()
-            # end_preds += end_.tolist()
+            start_, end_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
+            start_preds += start_.tolist()
+            end_preds += end_.tolist()
             prog.update(count + 1, [])
             count +=1
-        return start_preds
+        return zip(start_preds, end_preds)
 
     def evaluate_two_hots(self, sess):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
@@ -259,11 +273,11 @@ class SequencePredictor():
         gold_indices = open(self.dev_indices_data_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
-            for start_preds in self.output(sess):
-                # print "start preds: "
-                # print start_preds
-                # print "end preds: "
-                # print end_preds
+            for start_preds, end_preds in self.output(sess):
+                print "start preds: "
+                print start_preds
+                print "end preds: "
+                print end_preds
                 gold = gold_indices.readline()
                 # print "gold before" 
                 # print gold
@@ -286,27 +300,27 @@ class SequencePredictor():
                 else:
                     start_index = start_preds.index(max(start_preds))
 
-                # np_end_preds = np.asarray(end_preds)
-                # end_maxima = argrelextrema(np_end_preds, np.greater)[0]
-                # # print "###########"
-                # # print end_maxima
-                # tuples = [(x, np_end_preds[x]) for x in end_maxima]
-                # # print tuples
-                # end_maxima = sorted(tuples, key = lambda x: x[1])
-                # # print maxima
-                # if len(end_maxima) > 0:
-                #     end_index = end_maxima[-1][0]
-                # else:
-                #     end_index = end_preds.index(max(end_preds))
+                np_end_preds = np.asarray(end_preds)
+                end_maxima = argrelextrema(np_end_preds, np.greater)[0]
+                # print "###########"
+                # print end_maxima
+                tuples = [(x, np_end_preds[x]) for x in end_maxima]
+                # print tuples
+                end_maxima = sorted(tuples, key = lambda x: x[1])
+                # print maxima
+                if len(end_maxima) > 0:
+                    end_index = end_maxima[-1][0]
+                else:
+                    end_index = end_preds.index(max(end_preds))
 
                 print
                 print "gold start ", (gold_start)
                 print "our start " , (start_index)
-                # print "gold end ", (gold_end)
-                # print "our end ", (end_index)
+                print "gold end ", (gold_end)
+                print "our end ", (end_index)
 
                 text = gold_standard_summaries.readline()
-                summary = ' '.join(text.split()[start_index:start_index + 20])
+                summary = ' '.join(text.split()[start_index:end_index])
                 gold_summary = ' '.join(text.split()[gold_start:gold_end])
                 summary = normalize_answer(summary)
                 gold_summary = normalize_answer(gold_summary)
@@ -314,16 +328,16 @@ class SequencePredictor():
                 f.write(summary + ' \n')
                 f.write(gold_summary + ' \n')
 
-                x = range(start_index, start_index + 20)
-                y = range(gold_start,gold_end)
+                x = range(start_index,end_index + 1)
+                y = range(gold_start,gold_end + 1)
                 xs = set(x)
                 overlap = xs.intersection(y)
                 overlap = len(overlap)
 
                 if start_index == gold_start:
                     start_num_exact_correct += 1
-                # if start_index + 2 == gold_end:
-                #     end_num_exact_correct += 1
+                if end_index == gold_end:
+                    end_num_exact_correct += 1
                 
                 number_indices += 1
                 correct_preds += overlap
