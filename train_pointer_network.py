@@ -33,7 +33,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 10
+        self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -53,19 +53,19 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt" #"train_bills_3_context.txt"
-        self.train_summary_data_file = "train_bills_3_summaries.txt"
-        self.train_indices_data_file = "train_bills_3_indices.txt"
-        self.train_sequence_data_file = "train_bills_3_sequences.txt"
+        self.train_data_file = "bills_train_bills_3_150.txt" #"train_bills_3_context.txt"
+        self.train_summary_data_file = "summaries_train_bills_3_150.txt"
+        self.train_indices_data_file = "indices_train_bills_3_150.txt"
+        self.train_sequence_data_file = "sequences_train_bills_3_150.txt"
         self.train_keyword_data_file = "train_bills_3_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "dev_bills_3_context.txt"
-        self.dev_summary_data_file =  "dev_bills_3_summaries.txt"
-        self.dev_indices_data_file = "dev_bills_3_indices.txt"
-        self.dev_sequence_data_file = "dev_bills_3_sequences.txt"
+        self.dev_data_file =  "bills_dev_bills_3_150.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_3_150.txt"
+        self.dev_indices_data_file = "indices_dev_bills_3_150.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_3_150.txt"
         self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
@@ -103,7 +103,6 @@ class SequencePredictor():
                 for i in xrange(0, 5 - len(padded_keyword)):
                     padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
-
                 start_index_one_hot = [0] * MAX_BILL_LENGTH
                 if start_index >= MAX_BILL_LENGTH:
                     start_index_one_hot[0] = 1
@@ -111,7 +110,7 @@ class SequencePredictor():
                 else:
                     start_index_one_hot[start_index] = 1
 
-                                #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
+                #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
                 if (len(start_index_one_hot) > len(bill_list)):
                     val = 0
                     for i in xrange(0, len(start_index_one_hot) - sequence_len):
