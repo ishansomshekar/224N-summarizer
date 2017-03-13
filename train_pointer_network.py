@@ -103,11 +103,13 @@ class SequencePredictor():
                     padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
                 start_index_one_hot = [0] * MAX_BILL_LENGTH
-                if start_index >= MAX_BILL_LENGTH:
-                    start_index_one_hot[0] = 1
-                    start_index = 0
-                else:
-                    start_index_one_hot[start_index] = 1
+                # if start_index >= MAX_BILL_LENGTH:
+                #     start_index_one_hot[0] = 1
+                #     start_index = 0
+                # else:
+                #     start_index_one_hot[start_index] = 1
+                for i in xrange(start_index, end_index + 1):
+                    start_index_one_hot[i] = 1
 
                 #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
                 if (len(start_index_one_hot) > len(bill_list)):
@@ -312,9 +314,9 @@ class SequencePredictor():
         #loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         #loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
-        loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
+        #loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-        loss = loss_1 + loss_2
+        loss = loss_1 #+ loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
 
