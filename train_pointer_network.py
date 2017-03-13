@@ -337,11 +337,14 @@ class SequencePredictor():
         gold_standard_summaries = open(self.dev_data_file, 'r')
         gold_indices = open(self.dev_indices_data_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
-       
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
                 gold = gold_indices.readline()
+                # print "gold before" 
+                # print gold
                 gold = gold.split()
+                # print "gold split"
+                # print gold
                 gold_start = int(gold[0])
                 gold_end = int(gold[1])
 
@@ -371,10 +374,11 @@ class SequencePredictor():
                 else:
                     end_index = end_preds.index(max(end_preds))
 
-                print(gold_start)
-                print(start_index)
-                print(gold_end)
-                print (end_index)
+                print
+                print "gold start ", (gold_start)
+                print "our start " , (start_index)
+                print "gold end ", (gold_end)
+                print "our end ", (end_index)
 
                 text = gold_standard_summaries.readline()
                 summary = ' '.join(text.split()[start_index:end_index])
