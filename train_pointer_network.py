@@ -32,7 +32,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 70
+        self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -122,16 +122,16 @@ class SequencePredictor():
                 # distrib = np.random.normal(1.0, 0.5, int(.05 * len(start_index_one_hot)))
                 # distrib = [x % 1. for x in distrib]
                 distrib = [0.75, 0.5, 0.25]
-                print "distrb: "
-                print distrib
+                # print "distrb: "
+                # print distrib
                 distrib = sorted(distrib, reverse = True)
                 #now, add around the one hot
-                for idx, value in enumerate(distrib):
-                    idx += 1
-                    if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
-                        start_index_one_hot[start_index - idx] = value
-                    if (start_index + idx) < len(start_index_one_hot):
-                        start_index_one_hot[start_index + idx] = value
+                # for idx, value in enumerate(distrib):
+                #     idx += 1
+                #     if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+                #         start_index_one_hot[start_index - idx] = value
+                #     if (start_index + idx) < len(start_index_one_hot):
+                #         start_index_one_hot[start_index + idx] = value
 
                 end_index_one_hot = [0] * MAX_BILL_LENGTH
                 if end_index >= MAX_BILL_LENGTH:
@@ -140,12 +140,12 @@ class SequencePredictor():
                 else:
                     end_index_one_hot[end_index] = 1
 
-                for idx, value in enumerate(distrib):
-                    idx += 1
-                    if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
-                        end_index_one_hot[end_index - idx] = value
-                    if (end_index + idx) < len(end_index_one_hot):
-                        end_index_one_hot[end_index + idx] = value
+                # for idx, value in enumerate(distrib):
+                #     idx += 1
+                #     if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+                #         end_index_one_hot[end_index - idx] = value
+                #     if (end_index + idx) < len(end_index_one_hot):
+                #         end_index_one_hot[end_index + idx] = value
 
                 padded_masks.append(mask)
                 padded_bills.append(padded_bill)
@@ -155,7 +155,7 @@ class SequencePredictor():
 
             yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
             print padded_start_indices
-            print padded_end_indices
+            # print padded_end_indices
             padded_bills = []
             padded_start_indices = []
             padded_end_indices = []
@@ -346,7 +346,7 @@ class SequencePredictor():
         file_name = train_name + "/" + str(time.time()) + ".txt"
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
-                print "start preds":
+                print "start preds: "
                 print start_preds
                 print "end preds: "
                 print end_preds
