@@ -54,7 +54,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "train_bills_3_context.txt"
+        self.train_data_file = "bills_data_100_test.txt" #"train_bills_3_context.txt"
         self.train_summary_data_file = "train_bills_3_summaries.txt"
         self.train_indices_data_file = "train_bills_3_indices.txt"
         self.train_sequence_data_file = "train_bills_3_sequences.txt"
@@ -211,6 +211,7 @@ class SequencePredictor():
                 preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
             assert tf.get_variable_scope().reuse == True
+
         preds_start = tf.pack(preds_start)
         preds_start = tf.squeeze(preds_start)
         preds_start = tf.transpose(preds_start,[1,0])
@@ -263,16 +264,17 @@ class SequencePredictor():
         return self.train_op    
 
     def output(self, sess):
-        batch_preds = []
+        start_preds = []
+        end_preds = []
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
-            preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
-            # print preds_
-            batch_preds.append(list(preds_))
+            start_, end_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
+            start_preds += start_.tolist()
+            end_preds += end_.tolist()
             prog.update(count + 1, [])
             count +=1
-        return batch_preds
+        return zip(start_preds, end_preds)
 
 
     def evaluate_two_hots(self, sess):
@@ -283,56 +285,67 @@ class SequencePredictor():
         file_name = train_name + "/" + str(time.time()) + ".txt"
        
         with open(file_name, 'a') as f:
-            for batch_preds in self.output(sess):
-                for preds in batch_preds:
-                    index_prediction = preds
-                    gold = gold_indices.readline()
-                    gold = gold.split()
-                    gold_start = int(gold[0])
-                    gold_end = int(gold[1])
+            for start_preds, end_preds in self.output(sess):
+                gold = gold_indices.readline()
+                gold = gold.split()
+                gold_start = int(gold[0])
+                gold_end = int(gold[1])
 
-                    np_preds = np.asarray(index_prediction.tolist())
-                    print np_preds
-                    # print np_preds
-                    maxima = argrelextrema(np_preds, np.greater)
-                    print "###########"
-                    print maxima
-                    tuples = [(x, np_preds[x]) for x in maxima]
-                    # print tuples
-                    maxima = sorted(tuples, key = lambda x: x[1])
-                    # print maxima
-                    start_index = min(maxima[-1], maxima[-2])[0]
-                    end_index = max(maxima[-1], maxima[-2])[0]
+                np_start_preds = np.asarray(start_preds)
+                start_maxima = argrelextrema(np_start_preds, np.greater)[0]
+                # print "###########"
+                # print start_maxima
+                tuples = [(x, np_start_preds[x]) for x in start_maxima]
+                # print tuples
+                start_maxima = sorted(tuples, key = lambda x: x[1])
+                # print maxima
+                if len(start_maxima) > 0:
+                    start_index = start_maxima[-1][0]
+                else:
+                    start_index = start_preds.index(max(start_preds))
 
-                    print(gold_start)
-                    print(start_index)
-                    print(gold_end)
-                    print (end_index)
+                np_end_preds = np.asarray(end_preds)
+                end_maxima = argrelextrema(np_end_preds, np.greater)[0]
+                # print "###########"
+                # print end_maxima
+                tuples = [(x, np_end_preds[x]) for x in end_maxima]
+                # print tuples
+                end_maxima = sorted(tuples, key = lambda x: x[1])
+                # print maxima
+                if len(end_maxima) > 0:
+                    end_index = end_maxima[-1][0]
+                else:
+                    end_index = end_preds.index(max(end_preds))
 
-                    text = gold_standard_summaries.readline()
-                    summary = ' '.join(text.split()[start_index:end_index])
-                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
-                    summary = normalize_answer(summary)
-                    gold_summary = normalize_answer(gold_summary)
+                print(gold_start)
+                print(start_index)
+                print(gold_end)
+                print (end_index)
 
-                    f.write(summary + ' \n')
-                    f.write(gold_summary + ' \n')
+                text = gold_standard_summaries.readline()
+                summary = ' '.join(text.split()[start_index:end_index])
+                gold_summary = ' '.join(text.split()[gold_start:gold_end])
+                summary = normalize_answer(summary)
+                gold_summary = normalize_answer(gold_summary)
 
-                    x = range(start_index,end_index + 1)
-                    y = range(gold_start,gold_end + 1)
-                    xs = set(x)
-                    overlap = xs.intersection(y)
-                    overlap = len(overlap)
+                f.write(summary + ' \n')
+                f.write(gold_summary + ' \n')
 
-                    if start_index == gold_start:
-                        start_num_exact_correct += 1
-                    if end_index == gold_end:
-                        end_num_exact_correct += 1
-                    
-                    number_indices += 1
-                    correct_preds += overlap
-                    total_preds += len(x)
-                    total_correct += len(y)
+                x = range(start_index,end_index + 1)
+                y = range(gold_start,gold_end + 1)
+                xs = set(x)
+                overlap = xs.intersection(y)
+                overlap = len(overlap)
+
+                if start_index == gold_start:
+                    start_num_exact_correct += 1
+                if end_index == gold_end:
+                    end_num_exact_correct += 1
+                
+                number_indices += 1
+                correct_preds += overlap
+                total_preds += len(x)
+                total_correct += len(y)
 
             start_exact_match = start_num_exact_correct/number_indices
             end_exact_match = end_num_exact_correct/number_indices
