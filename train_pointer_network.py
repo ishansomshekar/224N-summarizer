@@ -25,7 +25,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = str(time.time())
+train_name = "pointername" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
 
 class SequencePredictor():
