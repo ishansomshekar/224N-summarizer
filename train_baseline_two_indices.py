@@ -34,7 +34,7 @@ class SequencePredictor():
         self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.001
+        self.lr = 0.005
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -252,7 +252,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
         self.train_op = optimizer.minimize(losses)
         return self.train_op    
 
