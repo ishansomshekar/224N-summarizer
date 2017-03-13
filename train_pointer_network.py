@@ -343,7 +343,8 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.RMSPropOptimzer(learning_rate=self.lr)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
+
         grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
         # for grad in grads:
