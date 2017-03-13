@@ -106,13 +106,13 @@ class SequencePredictor():
                     padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
                 start_index_one_hot = [0] * MAX_BILL_LENGTH
-                # if start_index >= MAX_BILL_LENGTH:
-                #     start_index_one_hot[0] = 1
-                #     start_index = 0
-                # else:
-                #     start_index_one_hot[start_index] = 1
-                for i in xrange(start_index, end_index + 1):
-                    start_index_one_hot[i] = 1
+                if start_index >= MAX_BILL_LENGTH:
+                    start_index_one_hot[0] = 1
+                    start_index = 0
+                else:
+                    start_index_one_hot[start_index] = 1
+                # for i in xrange(start_index, end_index + 1):
+                #     start_index_one_hot[i] = 1
 
                 #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
                 if (len(start_index_one_hot) > len(bill_list)):
@@ -129,12 +129,12 @@ class SequencePredictor():
                 # print distrib
                 distrib = sorted(distrib, reverse = True)
                 #now, add around the one hot
-                # for idx, value in enumerate(distrib):
-                #     idx += 1
-                #     if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
-                #         start_index_one_hot[start_index - idx] = value
-                #     if (start_index + idx) < len(start_index_one_hot):
-                #         start_index_one_hot[start_index + idx] = value
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index - idx] = value
+                    if (start_index + idx) < len(start_index_one_hot):
+                        start_index_one_hot[start_index + idx] = value
 
                 end_index_one_hot = [0] * MAX_BILL_LENGTH
                 if end_index >= MAX_BILL_LENGTH:
@@ -143,12 +143,12 @@ class SequencePredictor():
                 else:
                     end_index_one_hot[end_index] = 1
 
-                # for idx, value in enumerate(distrib):
-                #     idx += 1
-                #     if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
-                #         end_index_one_hot[end_index - idx] = value
-                #     if (end_index + idx) < len(end_index_one_hot):
-                #         end_index_one_hot[end_index + idx] = value
+                for idx, value in enumerate(distrib):
+                    idx += 1
+                    if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index - idx] = value
+                    if (end_index + idx) < len(end_index_one_hot):
+                        end_index_one_hot[end_index + idx] = value
 
                 padded_masks.append(mask)
                 padded_bills.append(padded_bill)
@@ -157,7 +157,7 @@ class SequencePredictor():
                 padded_keywords.append(padded_keyword)
 
             yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
-            print padded_start_indices
+            #print padded_start_indices
             # print padded_end_indices
             padded_bills = []
             padded_start_indices = []
@@ -299,13 +299,13 @@ class SequencePredictor():
                 
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
-                u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
+                u_start = tf.nn.relu(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
                 tf.summary.histogram('p_start', p_start)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
-                u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
+                u_end = tf.nn.relu(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
                 tf.summary.histogram('p_end', p_end)
 
@@ -343,7 +343,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.RMSProp(learning_rate=self.lr)
         grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
         # for grad in grads:
