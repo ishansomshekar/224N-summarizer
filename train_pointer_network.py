@@ -556,18 +556,18 @@ class SequencePredictor():
         #print start_labels_batch
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
         ##### THIS IS SO CONFUSING ######
-        _, loss, summary = sess.run([self.train_op, self.loss, self.summary_op], feed_dict=feed)
+        _, loss= sess.run([self.train_op, self.loss], feed_dict=feed)
         
-        return loss, summary
+        return loss
 
     def run_epoch(self, sess):
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
             tf.get_variable_scope().reuse_variables()
-            loss, summary = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
+            loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", loss)])
-            self.writer.add_summary(summary, count)
+            #self.writer.add_summary(summary, count)
             count += 1
         print("")
 
