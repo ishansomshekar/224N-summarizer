@@ -34,7 +34,7 @@ class SequencePredictor():
         self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.001
+        self.lr = 0.005
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -44,6 +44,7 @@ class SequencePredictor():
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
+        self.dropout_rate = 0.5
 
         self.start_index_labels_placeholder = None
         self.end_index_labels_placeholder = None
@@ -220,11 +221,13 @@ class SequencePredictor():
             for i in xrange(self.batch_size):
                 bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
                 result_start = tf.matmul(bill, U_1) + b2_1
-                result_start = tf.nn.sigmoid(result_start)
+                result_start = tf.nn.dropout(result_start,self.dropout_rate)
+                result_start = tf.nn.tanh(result_start)
                 preds_start.append(result_start)
 
                 result_end = tf.matmul(bill, U_2) + b2_2
-                result_end = tf.nn.sigmoid(result_end)
+                result_end = tf.nn.dropout(result_end,self.dropout_rate)
+                result_end = tf.nn.tanh(result_end)
                 preds_end.append(result_end)
         
         preds_start = tf.pack(preds_start)
@@ -249,7 +252,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
         self.train_op = optimizer.minimize(losses)
         return self.train_op    
 
