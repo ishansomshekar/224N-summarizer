@@ -40,7 +40,7 @@ class SequencePredictor():
         self.mask_placeholder = None
         self.hidden_size = 20
         self.predictions = []
-        self.batch_size = 20
+        self.batch_size = 5
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
@@ -117,8 +117,10 @@ class SequencePredictor():
                         val ^= 1
 
                 #generate normal distribution
-                distrib = np.random.normal(0.6, 0.25, int(.25 * len(start_index_one_hot)))
-                distrib = [x for x in distrib if x < .95 and x > 0]
+                distrib = np.random.normal(1.0, 0.5, int(.1 * len(start_index_one_hot)))
+                distrib = [x % 1. for x in distrib]
+                print "distrb: "
+                print distrib
                 distrib = sorted(distrib, reverse = True)
                 #now, add around the one hot
                 for idx, value in enumerate(distrib):
@@ -149,6 +151,8 @@ class SequencePredictor():
                 padded_keywords.append(padded_keyword)
 
             yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
+            print padded_start_indices
+            print padded_end_indices
             padded_bills = []
             padded_start_indices = []
             padded_end_indices = []
