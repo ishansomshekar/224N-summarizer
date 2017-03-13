@@ -27,6 +27,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = str(time.time())
+logs_path = os.getcwd() + '/tf_log/'
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -38,6 +39,7 @@ class SequencePredictor():
         self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
+        self.summary_op = None
         self.mask_placeholder = None
         self.hidden_size = 10
         self.predictions = []
@@ -45,6 +47,7 @@ class SequencePredictor():
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
+        self.writer = None
 
         self.start_index_labels_placeholder = None
         self.end_index_labels_placeholder = None
@@ -274,6 +277,14 @@ class SequencePredictor():
             vt_end = tf.get_variable('vt_end', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
+            
+            tf.summary.histogram('W1_start', W1_start)
+            tf.summary.histogram('W2_start', W1_start)
+            tf.summary.histogram('W1_end', W1_start)
+            tf.summary.histogram('W2_end', W1_start)
+            tf.summary.histogram('vt_start', W1_start)
+            tf.summary.histogram('vt_end', W1_start)
+
             for time_step in xrange(self.bill_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
@@ -284,11 +295,13 @@ class SequencePredictor():
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
+                tf.summary.histogram('p_start', p_start)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
+                tf.summary.histogram('p_end', p_end)
 
                 preds_start.append(tf.nn.softmax(p_start))
                 preds_end.append(tf.nn.softmax(p_end))
@@ -302,6 +315,8 @@ class SequencePredictor():
         preds_end = tf.squeeze(preds_end)
         preds_end = tf.transpose(preds_end,[1,0])
         self.predictions = (preds_start, preds_end)
+        tf.summary.histogram('start_preds', self.predictions[0])
+        tf.summary.histogram('end_preds', self.predictions[1])
         print (preds_start, preds_end)
         return (preds_start, preds_end)
 
@@ -309,13 +324,19 @@ class SequencePredictor():
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-        loss = loss_1 + loss_2
-        self.loss = tf.reduce_mean(loss)   
-        return self.loss
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder) + tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder))
+        self.loss = loss
+        tf.summary.histogram('start_preds', preds[0])
+        tf.summary.histogram('end_preds', preds[1])
+        tf.summary.scalar('loss',self.loss)  
+        return loss
 
     def add_optimization(self, losses):
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
+        grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
+        for grad in grads:
+            tf.summary.histogram('gradients', grad)
         return self.train_op    
 
     def output(self, sess):
@@ -519,16 +540,18 @@ class SequencePredictor():
         #print start_labels_batch
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
         ##### THIS IS SO CONFUSING ######
-        _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
-        return loss
+        _, loss, summary = sess.run([self.train_op, self.loss, self.summary_op], feed_dict=feed)
+        
+        return loss, summary
 
     def run_epoch(self, sess):
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
         for inputs,start_labels, end_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
             tf.get_variable_scope().reuse_variables()
-            loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
+            loss, summary = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", loss)])
+            self.writer.add_summary(summary, count)
             count += 1
         print("")
 
@@ -569,7 +592,9 @@ def build_model(embedding_wrapper):
         start = time.time()
         model = SequencePredictor(embedding_wrapper)
         preds, loss, train_op = model.initialize_model()
+        model.summary_op = tf.summary.merge_all()
         logger.info("took %.2f seconds", time.time() - start)
+        model.writer = tf.summary.FileWriter(logs_path, graph=tf.get_default_graph())
 
         tf.get_variable_scope().reuse_variables()
         init = tf.global_variables_initializer()
