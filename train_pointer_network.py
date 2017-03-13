@@ -308,10 +308,11 @@ class SequencePredictor():
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
                 #tf.summary.histogram('p_end', p_end)
-
-                preds_start.append(p_start)
-                preds_end.append(p_end)
-                # preds_start.append(tf.nn.softmax(p_start))
+                # print "preds:"
+                # print p_start
+                preds_start.append(tf.nn.softmax(p_start, dim = 0))
+                preds_end.append(tf.nn.softmax(p_end, dim = 0))
+                # preds_start.append(tf.nn.softmax(p_start)))
                 # preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
             assert tf.get_variable_scope().reuse == True
