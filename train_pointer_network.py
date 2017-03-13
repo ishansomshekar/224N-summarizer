@@ -10,6 +10,7 @@ import time
 from attention_decoder import attention_decoder
 from evaluate_prediction import normalize_answer
 import rougescore as rs
+from scipy.signal import argrelextrema
 #from pointer_network import PointerCell
 
 from util import Progbar
@@ -33,7 +34,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 50
+        self.bill_length = 10
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -175,14 +176,19 @@ class SequencePredictor():
         # print backwards_hidden_states
         #print complete_hidden_states
 
-        preds = []
+        preds_start = []
+        preds_end = []
         with tf.variable_scope("decoder"):
             # tf.get_variable_scope().reuse_variables() doesnt work because of first pass through loop
             cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
             state = cell.zero_state(self.batch_size, dtype=tf.float64)
-            W1 = tf.get_variable('W1', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
-            W2 = tf.get_variable('W2', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
-            vt = tf.get_variable('vt', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            W1_start = tf.get_variable('W1_start', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
+            W2_start = tf.get_variable('W2_start', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            vt_start = tf.get_variable('vt_start', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
+            W1_end = tf.get_variable('W1_end', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64) 
+            W2_end = tf.get_variable('W2_end', (self.batch_size, self.batch_size), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+            vt_end = tf.get_variable('vt_end', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
             for time_step in xrange(self.bill_length):
@@ -190,19 +196,30 @@ class SequencePredictor():
                     tf.get_variable_scope().reuse_variables()
                
                 o_t, h_t = cell(bill_embeddings[:, time_step, :], state) # o_t is batch_size, 1
-                x = tf.matmul(W1, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
-                y = tf.matmul(W2, o_t) # result is 1 , hidden_size*4
-                u = tf.nn.tanh(x + y) #(batch_size, hidden_size * 4)
-                p = tf.matmul(u, vt) #(batch_size, bill_length)
+                
+                x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
+                y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
+                u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
+                p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
 
-                preds.append(tf.nn.softmax(p))
+                x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
+                y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
+                u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
+                p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
+
+                preds_start.append(tf.nn.softmax(p_start))
+                preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
             assert tf.get_variable_scope().reuse == True
-        preds = tf.pack(preds)
-        preds = tf.squeeze(preds)
-        preds = tf.transpose(preds,[1,0])
-        self.predictions = preds
-        return preds
+        preds_start = tf.pack(preds_start)
+        preds_start = tf.squeeze(preds_start)
+        preds_start = tf.transpose(preds_start,[1,0])
+        preds_end = tf.pack(preds_end)
+        preds_end = tf.squeeze(preds_end)
+        preds_end = tf.transpose(preds_end,[1,0])
+        self.predictions = (preds_start, preds_end)
+        print (preds_start, preds_end)
+        return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
         # start_indexes = tf.cast(preds[0], tf.float64)
@@ -233,9 +250,10 @@ class SequencePredictor():
         # return tf.add(total_start_loss, total_end_loss)
 
 
-        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds, self.start_index_labels_placeholder)
+        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
+        loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
-        loss = loss_1
+        loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
 
@@ -250,12 +268,95 @@ class SequencePredictor():
         count = 0
         for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
             preds_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
+            # print preds_
             batch_preds.append(list(preds_))
             prog.update(count + 1, [])
             count +=1
         return batch_preds
 
-    def evaluate(self, sess):
+
+    def evaluate_two_hots(self, sess):
+        correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+        start_num_exact_correct, end_num_exact_correct = 0, 0
+        gold_standard_summaries = open(self.dev_data_file, 'r')
+        gold_indices = open(self.dev_indices_data_file, 'r')
+        file_name = train_name + "/" + str(time.time()) + ".txt"
+       
+        with open(file_name, 'a') as f:
+            for batch_preds in self.output(sess):
+                for preds in batch_preds:
+                    index_prediction = preds
+                    gold = gold_indices.readline()
+                    gold = gold.split()
+                    gold_start = int(gold[0])
+                    gold_end = int(gold[1])
+
+                    np_preds = np.asarray(index_prediction.tolist())
+                    print np_preds
+                    # print np_preds
+                    maxima = argrelextrema(np_preds, np.greater)
+                    print "###########"
+                    print maxima
+                    tuples = [(x, np_preds[x]) for x in maxima]
+                    # print tuples
+                    maxima = sorted(tuples, key = lambda x: x[1])
+                    # print maxima
+                    start_index = min(maxima[-1], maxima[-2])[0]
+                    end_index = max(maxima[-1], maxima[-2])[0]
+
+                    print(gold_start)
+                    print(start_index)
+                    print(gold_end)
+                    print (end_index)
+
+                    text = gold_standard_summaries.readline()
+                    summary = ' '.join(text.split()[start_index:end_index])
+                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
+                    summary = normalize_answer(summary)
+                    gold_summary = normalize_answer(gold_summary)
+
+                    f.write(summary + ' \n')
+                    f.write(gold_summary + ' \n')
+
+                    x = range(start_index,end_index + 1)
+                    y = range(gold_start,gold_end + 1)
+                    xs = set(x)
+                    overlap = xs.intersection(y)
+                    overlap = len(overlap)
+
+                    if start_index == gold_start:
+                        start_num_exact_correct += 1
+                    if end_index == gold_end:
+                        end_num_exact_correct += 1
+                    
+                    number_indices += 1
+                    correct_preds += overlap
+                    total_preds += len(x)
+                    total_correct += len(y)
+
+            start_exact_match = start_num_exact_correct/number_indices
+            end_exact_match = end_num_exact_correct/number_indices
+            p = correct_preds / total_preds if correct_preds > 0 else 0
+            r = correct_preds / total_correct if correct_preds > 0 else 0
+            f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+            gold_indices.close()
+
+            f.write('Model results: \n')
+            f.write('learning rate: %d \n' % self.lr)
+            f.write('batch size: %d \n' % self.batch_size)
+            f.write('hidden size: %d \n' % self.hidden_size)
+            f.write('bill_length: %d \n' % self.bill_length)
+            f.write('bill_file: %s \n' % self.train_data_file)
+            f.write('dev_file: %s \n' % self.dev_data_file)
+            f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
+            f.close()
+        
+        return (start_exact_match, end_exact_match), (p, r, f1)
+
+
+
+    def evaluate_one_hot(self, sess):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
         start_num_exact_correct, end_num_exact_correct = 0, 0
         gold_standard = open(self.dev_indices_data_file, 'r')
@@ -340,6 +441,7 @@ class SequencePredictor():
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
+        # print predictions
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
@@ -360,7 +462,7 @@ class SequencePredictor():
         print("")
 
         print("Evaluating on development data")
-        exact_match, entity_scores = self.evaluate(sess)
+        exact_match, entity_scores = self.evaluate_two_hots(sess)
         print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
