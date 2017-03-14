@@ -1,5 +1,4 @@
 from embedding_wrapper import EmbeddingWrapper
-from read_in_datafile import file_generator
 import os
 import numpy as np
 from encoder_decoder_cells import DecoderCell
@@ -26,6 +25,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "baseline_" + str(time.time())
+train = True
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -72,9 +72,51 @@ class SequencePredictor():
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
 
+    def batch_gen_test(self, embedding_lookup, bill_data_path):
+        
+        current_batch_bills = []
+        with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+            for bill in source_file:
+                bill_list = [self.embedding_wrapper.get_value(word) for word in bill.split()]
+                padded_bill = bill_list[:self.bill_length]
+                for i in xrange(0, self.bill_length - len(padded_bill)):
+                    padded_bill.append(self.embedding_wrapper.get_value(self.embedding_wrapper.pad))
+
+                current_batch_bills.append(padded_bill)
+                if len(current_batch_bills) == self.batch_size:
+                    yield current_batch_bills
+                    current_batch_bills = []        
+
+    def file_generator(self, batch_size, bill_data_path, indices_data_path, sequences_data_path, keywords_data_path):    
+        current_batch_summaries = []
+        current_batch_bills = []
+        current_batch_sequences = []
+        current_batch_keywords = []
+        counter = 0
+        with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+            with tf.gfile.GFile(indices_data_path, mode="r") as target_file:
+                with tf.gfile.GFile(sequences_data_path, mode="r") as seq_file:
+                    for bill in source_file:
+                        indices = target_file.readline()
+                        sequence_len = seq_file.readline()
+                        counter += 1
+                        start_and_end = indices.split()
+                        current_batch_bills.append(bill)
+                        # keywords = keyword_file.readline()
+                        # keywords_list = keywords.split()
+                        current_batch_summaries.append((int(start_and_end[0]), int(start_and_end[1])))
+                        current_batch_sequences.append(int(sequence_len))
+                        # current_batch_keywords.append(keywords_list)
+                        if len(current_batch_summaries) == batch_size:
+                            yield current_batch_bills, current_batch_summaries, current_batch_sequences, current_batch_keywords
+                            current_batch_bills = []
+                            current_batch_summaries = []
+                            current_batch_sequences = []
+                            current_batch_keywords = []
+
     def batch_generator(self,embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
-        f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
+        f_generator = self.file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
 
         #pad the bills and summaries
         print "now padding and encoding batches"
@@ -87,9 +129,9 @@ class SequencePredictor():
             for idx, bill in enumerate(bill_batch):
                 start_index, end_index = indices_batch[idx]
                 sequence_len = sequences[idx]
-                keywords_batch = keywords[idx]
+                #keywords_batch = keywords[idx]
                 bill_list = [embedding_wrapper.get_value(word) for word in bill.split()]
-                padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
+                #padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
                 # padded_summary = [embedding_wrapper.get_value(word) for word in summary] d g
                 mask = [True] * min(len(bill_list), MAX_BILL_LENGTH)
                 padded_bill = bill_list[:MAX_BILL_LENGTH]
@@ -100,8 +142,8 @@ class SequencePredictor():
                     padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
                     mask.append(False)
 
-                for i in xrange(0, 5 - len(padded_keyword)):
-                    padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
+                # for i in xrange(0, 5 - len(padded_keyword)):
+                #     padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
                 start_index_one_hot = [0] * MAX_BILL_LENGTH
                 if start_index >= MAX_BILL_LENGTH:
@@ -145,7 +187,7 @@ class SequencePredictor():
                 padded_bills.append(padded_bill)
                 padded_start_indices.append(start_index_one_hot)
                 padded_end_indices.append(end_index_one_hot)
-                padded_keywords.append(padded_keyword)
+                #padded_keywords.append(padded_keyword)
 
             yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
             #print padded_start_indices
@@ -156,13 +198,16 @@ class SequencePredictor():
             padded_masks = []
             padded_keywords = []
 
-    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch, start_labels_batch = None, end_labels_batch = None):
+    def create_feed_dict(self, inputs_batch, masks_batch=None, sequences=None, keywords_batch = None, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
-            self.inputs_placeholder : inputs_batch,
-            self.mask_placeholder : masks_batch,
-            self.sequences_placeholder : sequences,
-            self.keywords_placeholder : keywords_batch
+            self.inputs_placeholder : inputs_batch
             }
+        if masks_batch is not None:
+            feed_dict[self.mask_placeholder] = masks_batch
+        if sequences is not None:
+            feed_dict[self.sequences_placeholder] = sequences
+        if keywords_batch is not None:
+            feed_dict[self.keywords_placeholder] = keywords_batch
         if start_labels_batch is not None:
             feed_dict[self.start_index_labels_placeholder] = start_labels_batch
         if end_labels_batch is not None:
@@ -236,10 +281,6 @@ class SequencePredictor():
     def add_loss_op(self, preds):
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
-        
-        # loss_1 = tf.nn.l2_loss(preds - self.start_index_labels_placeholder)
-        # #loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
-        # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
         loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
@@ -248,6 +289,20 @@ class SequencePredictor():
         optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
         self.train_op = optimizer.minimize(losses)
         return self.train_op    
+
+    def test_output(self, sess):
+        start_preds = []
+        end_preds = []
+        for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
+            start_, end_ = self.predict_on_batch(sess, inputs)
+            print "start:"
+            print start_
+            print "end: "
+            print end_
+            start_preds += start_.tolist()
+            end_preds += end_.tolist()
+        return zip(start_preds, end_preds)
+
 
     def output(self, sess):
         start_preds = []
@@ -262,12 +317,15 @@ class SequencePredictor():
             count +=1
         return zip(start_preds, end_preds)
 
-    def evaluate_two_hots(self, sess):
+    def evaluate_two_hots(self, sess, data_file, indices_file, is_test):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
         start_num_exact_correct, end_num_exact_correct = 0, 0
-        gold_standard_summaries = open(self.dev_data_file, 'r')
-        gold_indices = open(self.dev_indices_data_file, 'r')
+        gold_standard_summaries = open(data_file, 'r')
+        gold_indices = open(indices_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
+        if is_test:
+            file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
+
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
                 print "start preds: "
@@ -359,100 +417,16 @@ class SequencePredictor():
             f.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
-
-
-
-    def evaluate_one_hot(self, sess):
-        correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
-        start_num_exact_correct, end_num_exact_correct = 0, 0
-        gold_standard = open(self.dev_indices_data_file, 'r')
-        file_dev = open(self.dev_data_file, 'r')
-        file_name = train_name + "/" + str(time.time()) + ".txt"
-        # rouge_scores = []
-        with open(file_name, 'w') as f:
-            for batch_preds in self.output(sess):
-                for preds in batch_preds:
-                    index_prediction = preds
-                    gold = gold_standard.readline()
-                    gold = normalize_answer(gold)
-                    gold = gold.split()
-                    gold_start = int(gold[0])
-                    gold_end = int(gold[1])
-
-                    index_prediction = index_prediction.tolist()
-                    maxStart = max(index_prediction)
-                    index_max1 = index_prediction.index(maxStart)
-                    
-                    index_prediction_copy = index_prediction[:]
-                    index_prediction_copy[index_max1] = 0
-                    maxEnd = max(index_prediction_copy)
-                    index_max2 = index_max1 + 20 #index_prediction_copy.index(maxEnd)
-
-                    #switch the orders if necessary
-                    start_index = min(index_max2, index_max1)
-                    end_index = max(index_max2, index_max1)
-
-                    text = file_dev.readline()
-                    summary = ' '.join(text.split()[start_index:end_index])
-                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
-                    f.write(summary + ' \n')
-                    f.write(gold_summary + ' \n')
-                    # if gold_summary != '':
-                    #     rouge_l_score = rs.rouge_l(summary, [gold_summary], 0.5)
-                    #     rouge_scores.append(rouge_l_score)                      
-
-                    # print "our start guess: ", start_index
-                    # print "gold_start: ", gold_start
-                    # print "our end guess: ", end_index
-                    # print "gold_end: ", gold_end
-
-                    x = range(start_index,end_index + 1)
-                    y = range(gold_start,gold_end + 1)
-                    xs = set(x)
-                    overlap = xs.intersection(y)
-                    overlap = len(overlap)
-
-                    if start_index == gold_start:
-                        start_num_exact_correct += 1
-                    if end_index == gold_end:
-                        end_num_exact_correct += 1
-                    
-                    number_indices += 1
-                    correct_preds += overlap
-                    total_preds += len(x)
-                    total_correct += len(y)
-
-            start_exact_match = start_num_exact_correct/number_indices
-            end_exact_match = end_num_exact_correct/number_indices
-            p = correct_preds / total_preds if correct_preds > 0 else 0
-            r = correct_preds / total_correct if correct_preds > 0 else 0
-            f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
-
-            gold_standard.close()
-            # avg_rouge = np.mean(rouge_scores)
-
-            f.write('Model results: \n')
-            f.write('learning rate: %.2f \n' % self.lr)
-            f.write('batch size: %d \n' % self.batch_size)
-            f.write('hidden size: %d \n' % self.hidden_size)
-            f.write('bill_length: %d \n' % self.bill_length)
-            f.write('bill_file: %s \n' % self.train_data_file)
-            f.write('dev_file: %s \n' % self.dev_data_file)
-            f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
-            # f.write('avg rouge: %.3f \n' % avg_rouge)
-            f.close()
-        
-        return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
         # print predictions
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
         #print start_labels_batch
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_labels_batch)
         ##### THIS IS SO CONFUSING ######
         _, loss = sess.run([self.train_op, self.loss], feed_dict=feed)
         return loss
@@ -468,7 +442,7 @@ class SequencePredictor():
         print("")
 
         print("Evaluating on development data")
-        exact_match, entity_scores = self.evaluate_two_hots(sess)
+        exact_match, entity_scores = self.evaluate_two_hots(sess, self.dev_data_file, self.dev_indices_data_file, False)
         print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
@@ -484,8 +458,8 @@ class SequencePredictor():
             if score > best_score:
                 best_score = score
                 if saver:
-                    print("New best score! Saving model in %s" % self.model_output)
-                    saver.save(sess, self.model_output)
+                    print('New best score! Saving model in /data/'+ train_name+ '/weights/summarizer.weights')
+                    saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
             print("")
 
@@ -509,10 +483,25 @@ def build_model(embedding_wrapper):
         tf.get_variable_scope().reuse_variables()
         init = tf.global_variables_initializer()
         tf.get_variable_scope().reuse_variables()
+        if not os.path.exists('./data/'+ train_name+ '/weights/'):
+            os.makedirs('./data/'+ train_name+ '/weights/')          
         saver = tf.train.Saver()
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver)
+            if train:
+                model.fit(session, saver)
+            else:
+                print "Testing..."
+                print 'Restoring the best model weights found on the dev set'
+                saver.restore(session, './data/'+ train_name + '/weights/summarizer.weights')
+
+                # for start_preds, end_preds in model.test_output(session):
+                #     print "start preds: "
+                #     print start_preds
+                #     print "end preds: "
+                #     print end_preds
+
+
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)

@@ -26,14 +26,14 @@ t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "attnflow_" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
-
+train = True
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 10
+        self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -55,7 +55,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_4_150.txt" #"train_bills_3_context.txt"
+        self.train_data_file = "summaries_train_bills_4_150" #"train_bills_3_context.txt"
         self.train_summary_data_file = "summaries_train_bills_4_150.txt"
         self.train_indices_data_file = "indices_train_bills_4_150.txt"
         self.train_sequence_data_file = "sequences_train_bills_4_150.txt"
@@ -73,6 +73,23 @@ class SequencePredictor():
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
+
+    def batch_gen_test(self, embedding_lookup, bill_data_path):
+        
+        current_batch_bills = []
+        with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+            for bill in source_file:
+                bill_list = [self.embedding_wrapper.get_value(word) for word in bill.split()]
+                padded_bill = bill_list[:self.bill_length]
+                for i in xrange(0, self.bill_length - len(padded_bill)):
+                    padded_bill.append(self.embedding_wrapper.get_value(self.embedding_wrapper.pad))
+
+                current_batch_bills.append(padded_bill)
+                if len(current_batch_bills) == self.batch_size:
+                    yield current_batch_bills
+                    current_batch_bills = []
+
+
 
     def file_generator(self, batch_size, bill_data_path, indices_data_path, sequences_data_path, keywords_data_path):    
         current_batch_summaries = []
@@ -161,16 +178,18 @@ class SequencePredictor():
 
     def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch = None, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
-            self.inputs_placeholder : inputs_batch,
-            self.mask_placeholder : masks_batch,
-            self.sequences_placeholder : sequences,
+            self.inputs_placeholder : inputs_batch
             }
+        if masks_batch is not None:
+            feed_dict[self.mask_placeholder] = masks_batch
+        if sequences is not None:
+            feed_dict[self.sequences_placeholder] = sequences
+        if keywords_batch is not None:
+            feed_dict[self.keywords_placeholder] = keywords_batch
         if start_labels_batch is not None:
             feed_dict[self.start_index_labels_placeholder] = start_labels_batch
         if end_labels_batch is not None:
             feed_dict[self.end_index_labels_placeholder] = end_labels_batch
-        if keywords_batch is not None:
-            feed_dict[self.keywords_placeholder] = keywords_batch
         return feed_dict
 
     def add_placeholders(self):
@@ -288,6 +307,8 @@ class SequencePredictor():
     def add_loss_op(self, preds):
         loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+
+        # loss_3 = tf.nn.l2_loss(max(preds[1]) - max(self.start_index_labels_placeholder))
         loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
@@ -300,6 +321,20 @@ class SequencePredictor():
         # for grad in grads:
         #     tf.summary.histogram('gradients', grad)
         return self.train_op    
+    
+    def test_output(self, sess):
+        start_preds = []
+        end_preds = []
+        for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
+            start_, end_ = self.predict_on_batch(sess, inputs)
+            print "start:"
+            print start_
+            print "end: "
+            print end_
+            start_preds += start_.tolist()
+            end_preds += end_.tolist()
+        return zip(start_preds, end_preds)
+
 
     def output(self, sess):
         start_preds = []
@@ -314,12 +349,16 @@ class SequencePredictor():
             count +=1
         return zip(start_preds, end_preds)
 
-    def evaluate_two_hots(self, sess):
+
+    def evaluate_two_hots(self, sess, data_file, indices_file, is_test):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
         start_num_exact_correct, end_num_exact_correct = 0, 0
-        gold_standard_summaries = open(self.dev_data_file, 'r')
-        gold_indices = open(self.dev_indices_data_file, 'r')
+        gold_standard_summaries = open(data_file, 'r')
+        gold_indices = open(indices_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
+        if is_test:
+            file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
+
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
                 print "start preds: "
@@ -433,7 +472,7 @@ class SequencePredictor():
         print("")
 
         print("Evaluating on development data")
-        exact_match, entity_scores = self.evaluate_two_hots(sess)
+        exact_match, entity_scores = self.evaluate_two_hots(sess, self.dev_data_file, self.dev_indices_data_file, False)
         print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
@@ -449,8 +488,8 @@ class SequencePredictor():
             if score > best_score:
                 best_score = score
                 if saver:
-                    print("New best score! Saving model in %s" % self.model_output)
-                    saver.save(sess, self.model_output)
+                    print('New best score! Saving model in /data/'+ train_name+ '/weights/summarizer.weights')
+                    saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
             print("")
 
@@ -476,10 +515,24 @@ def build_model(embedding_wrapper):
         tf.get_variable_scope().reuse_variables()
         init = tf.global_variables_initializer()
         tf.get_variable_scope().reuse_variables()
+        if not os.path.exists('./data/'+ train_name+ '/weights/'):
+            os.makedirs('./data/'+ train_name+ '/weights/')          
         saver = tf.train.Saver()
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver)
+            if train:
+                model.fit(session, saver)
+            
+            else:
+                print "Testing..."
+                print 'Restoring the best model weights found on the dev set'
+                saver.restore(session, './data/'+ train_name + '/weights/summarizer.weights')
+
+                # for start_preds, end_preds in model.test_output(session):
+                #     print "start preds: "
+                #     print start_preds
+                #     print "end preds: "
+                #     print end_preds
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)

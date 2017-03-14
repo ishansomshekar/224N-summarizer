@@ -33,7 +33,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 10
+        self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -71,10 +71,10 @@ class SequencePredictor():
         self.dev_sequence_data_file = "sequences_dev_bills_4_150.txt"
         self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
 
-        self.test_data_file =  "bills_dev_bills_3_150.txt"
-        self.test_summary_data_file =  "summaries_test_bills_3_150.txt"
-        self.test_indices_data_file = "indices_test_bills_3_150.txt"
-        self.test_sequence_data_file = "sequences_test_bills_3_150.txt"
+        self.test_data_file =  "bills_test_bills_4_150.txt"
+        self.test_summary_data_file =  "summaries_test_bills_4_150.txt"
+        self.test_indices_data_file = "indices_test_bills_4_150.txt"
+        self.test_sequence_data_file = "sequences_test_bills_4_150.txt"
         self.test_keyword_data_file = "test_bills_3_keywords.txt"
 
 
@@ -392,7 +392,6 @@ class SequencePredictor():
         file_name = train_name + "/" + str(time.time()) + ".txt"
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
-
         
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
@@ -561,7 +560,7 @@ def build_model(embedding_wrapper):
             else:
                 print "Testing..."
                 print 'Restoring the best model weights found on the dev set'
-                saver.restore(session, './data/'+ train_name+ '/weights/summarizer.weights')
+                saver.restore(session, './data/'+ train_name + '/weights/summarizer.weights')
 
                 # for start_preds, end_preds in model.test_output(session):
                 #     print "start preds: "
