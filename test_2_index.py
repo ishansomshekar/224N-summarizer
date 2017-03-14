@@ -1,103 +1,174 @@
 import numpy as np
 import ast
 
-correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
-start_num_exact_correct, end_num_exact_correct = 0, 0
-gold_indices = open("indices_dev_bills_4_150.txt", 'r')
+def start_fixed():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open("indices_dev_bills_4_150.txt", 'r')
 
-with open('attn_flow_preds.txt') as f:
-    while True:
-        sp = f.readline()
-        if not sp:
-            break
-        a = ast.literal_eval(f.readline())
-        # print a
-        a = np.asarray(a).astype(np.float)
+    with open('preds_1489530111.91.txt') as f:
+        while True:
+            # sp = f.readline()
+            # if not sp:
+            #     break
+            first = f.readline()
+            if first == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            a = np.asarray(a).astype(np.float)
 
-        ep = f.readline()
-        b = ast.literal_eval(f.readline())
-        # print b
-        b = np.asarray(a).astype(np.float)
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            b = np.asarray(a).astype(np.float)
 
-        f.readline()
+            f.readline()
 
-        # print a
-        a = np.exp(a - np.amax(a))
-        a = a / np.sum(a)
-        b = np.exp(b - np.amax(b))
-        b = b / np.sum(b)
+            # print a
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
 
-        a_idx = len(a) - 2
-        b_idx = len(b) - 1
+            a_idx = np.argmax(a)
+            a_max = a[a_idx]
+            b_idx = a_idx + 1
+            total_max = a[a_idx] * b[b_idx]
+            for i in xrange(a_idx + 1, len(b) - 1):
+                if a_max * b[i] > total_max:
+                    b_idx = i
+                    total_max = a_max * b[b_idx]
 
-        b_max = b_idx
-        total_max = a[a_idx] * b[b_max]
+            # text = gold_standard_summaries.readline()
+            # summary = ' '.join(text.split()[start_index:end_index])
+            # gold_summary = ' '.join(text.split()[gold_start:gold_end])
+            # summary = normalize_answer(summary)
+            # gold_summary = normalize_answer(gold_summary)
 
-        for i in xrange(len(a)-3, -1, -1):
-            if b[i + 1] > b[b_max]:
-                b_max = i + 1
-            if a[i] * b[b_max] > total_max:
-                a_idx = i
-                b_idx = b_max
+            # print(f.readline())
+            # print(f.readline())
+            # print(f.readline())
+            # print(f.readline())
 
-        # a_idx = np.argmax(a)
-        # a_max = a[a_idx]
-        # b_idx = a_idx + 1
-        # total_max = a[a_idx] * b[b_idx]
-        # for i in xrange(a_idx + 1, len(b) - 1):
-        #     if a_max * b[i] > total_max:
-        #         b_idx = i
-        #         total_max = a_max * b[b_idx]
+            gold = gold_indices.readline()
+            gold = gold.split()
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+            start_index = int(a_idx)
+            end_index = int(b_idx)
 
-        # text = gold_standard_summaries.readline()
-        # summary = ' '.join(text.split()[start_index:end_index])
-        # gold_summary = ' '.join(text.split()[gold_start:gold_end])
-        # summary = normalize_answer(summary)
-        # gold_summary = normalize_answer(gold_summary)
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+            # print(start_index, end_index)
+            # print (gold_start, gold_end)
+            # print
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
 
-        print(f.readline())
-        print(f.readline())
-        print(f.readline())
-        print(f.readline())
+    start_exact_match = start_num_exact_correct/number_indices
+    end_exact_match = end_num_exact_correct/number_indices
+    p = correct_preds / total_preds if correct_preds > 0 else 0
+    r = correct_preds / total_correct if correct_preds > 0 else 0
+    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
-        gold = gold_indices.readline()
-        gold = gold.split()
-        gold_start = int(gold[0])
-        gold_end = int(gold[1])
-        start_index = int(a_idx)
-        end_index = int(b_idx)
-
-        x = range(start_index,end_index + 1)
-        y = range(gold_start,gold_end + 1)
-        xs = set(x)
-        overlap = xs.intersection(y)
-        overlap = len(overlap)
-        print(start_index, end_index)
-        print (gold_start, gold_end)
-        if start_index == gold_start:
-            start_num_exact_correct += 1
-        if end_index == gold_end:
-            end_num_exact_correct += 1
-        
-        number_indices += 1
-        correct_preds += overlap
-        total_preds += len(x)
-        total_correct += len(y)
-
-        start_exact_match = start_num_exact_correct/number_indices
-        end_exact_match = end_num_exact_correct/number_indices
-        p = correct_preds / total_preds if correct_preds > 0 else 0
-        r = correct_preds / total_correct if correct_preds > 0 else 0
-        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
-
-        print start_exact_match, end_exact_match, p, r, f1
-
-
-print "########################################################"
+    print "start_index_fixed:   "
+    print start_exact_match, end_exact_match, p, r, f1
 
 
 
+def neither_fixed():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open("indices_dev_bills_4_150.txt", 'r')
 
+    with open('preds_1489530111.91.txt') as f:
+        while True:
+            # sp = f.readline()
+            # if not sp:
+            #     break
+            first = f.readline()
+            if first == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            a = np.asarray(a).astype(np.float)
+
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            b = np.asarray(a).astype(np.float)
+
+            f.readline()
+
+            # print a
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
+
+            a_idx = len(a) - 2
+            b_idx = len(b) - 1
+
+            b_max = b_idx
+            total_max = a[a_idx] * b[b_max]
+
+            for i in xrange(len(a)-3, -1, -1):
+                if b[i + 1] > b[b_max]:
+                    b_max = i + 1
+                if a[i] * b[b_max] > total_max:
+                    a_idx = i
+                    b_idx = b_max
+
+            gold = gold_indices.readline()
+            gold = gold.split()
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+            start_index = int(a_idx)
+            end_index = int(b_idx)
+
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+            # print(start_index, end_index)
+            # print (gold_start, gold_end)
+            # print
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
+
+    start_exact_match = start_num_exact_correct/number_indices
+    end_exact_match = end_num_exact_correct/number_indices
+    p = correct_preds / total_preds if correct_preds > 0 else 0
+    r = correct_preds / total_correct if correct_preds > 0 else 0
+    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+    print "neither_fixed:"
+    print start_exact_match, end_exact_match, p, r, f1
+
+
+    print "########################################################"    
+
+neither_fixed()
+start_fixed()
 
 
 
