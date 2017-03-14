@@ -32,10 +32,10 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 50
-        self.num_epochs = 10
+        self.num_epochs = 15
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.0001
+        self.lr = 0.0005
         self.inputs_placeholder = None
         self.summary_input = None
         self.summary_op = None
@@ -390,74 +390,80 @@ class SequencePredictor():
         gold_standard_summaries = open(data_file, 'r')
         gold_indices = open(indices_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
+        preds_file_name = train_name + "/" + "preds_" + str(time.time()) + ".txt"
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
         
         with open(file_name, 'a') as f:
-            for start_preds, end_preds in self.output(sess):
-                print "start preds: "
-                print start_preds
-                print "end preds: "
-                print end_preds
-                gold = gold_indices.readline()
-                gold = gold.split()
-                gold_start = int(gold[0])
-                gold_end = int(gold[1])
+            with open(preds_file_name, 'a') as f_preds:
+                for start_preds, end_preds in self.output(sess):
+                    f_preds.write(str(start_preds) + '\n')
+                    f_preds.write(str(end_preds) + '\n')
+                    f_preds.write('\n')
+                    # print "start preds: "
+                    # print start_preds
+                    # print "end preds: "
+                    # print end_preds
+                    gold = gold_indices.readline()
+                    gold = gold.split()
+                    gold_start = int(gold[0])
+                    gold_end = int(gold[1])
 
-                np_start_preds = np.asarray(start_preds)
-                start_maxima = argrelextrema(np_start_preds, np.greater)[0]
-                tuples = [(x, np_start_preds[x]) for x in start_maxima]
-                # print tuples
-                start_maxima = sorted(tuples, key = lambda x: x[1])
-                # print maxima
-                if len(start_maxima) > 0:
-                    start_index = start_maxima[-1][0]
-                else:
-                    start_index = start_preds.index(max(start_preds))
+                    np_start_preds = np.asarray(start_preds)
+                    start_maxima = argrelextrema(np_start_preds, np.greater)[0]
+                    tuples = [(x, np_start_preds[x]) for x in start_maxima]
+                    # print tuples
+                    start_maxima = sorted(tuples, key = lambda x: x[1])
+                    # print maxima
+                    if len(start_maxima) > 0:
+                        start_index = start_maxima[-1][0]
+                    else:
+                        start_index = start_preds.index(max(start_preds))
 
-                np_end_preds = np.asarray(end_preds)
-                end_maxima = argrelextrema(np_end_preds, np.greater)[0]
-                # print "###########"
-                # print end_maxima
-                tuples = [(x, np_end_preds[x]) for x in end_maxima]
-                # print tuples
-                end_maxima = sorted(tuples, key = lambda x: x[1])
-                # print maxima
-                if len(end_maxima) > 0:
-                    end_index = end_maxima[-1][0]
-                else:
-                    end_index = end_preds.index(max(end_preds))
+                    np_end_preds = np.asarray(end_preds)
+                    end_maxima = argrelextrema(np_end_preds, np.greater)[0]
+                    # print "###########"
+                    # print end_maxima
+                    tuples = [(x, np_end_preds[x]) for x in end_maxima]
+                    # print tuples
+                    end_maxima = sorted(tuples, key = lambda x: x[1])
+                    # print maxima
+                    if len(end_maxima) > 0:
+                        end_index = end_maxima[-1][0]
+                    else:
+                        end_index = end_preds.index(max(end_preds))
 
-                print
-                print "gold start ", (gold_start)
-                print "our start " , (start_index)
-                print "gold end ", (gold_end)
-                print "our end ", (end_index)
+                    print
+                    print "gold start ", (gold_start)
+                    print "our start " , (start_index)
+                    print "gold end ", (gold_end)
+                    print "our end ", (end_index)
 
-                text = gold_standard_summaries.readline()
-                summary = ' '.join(text.split()[start_index:end_index])
-                gold_summary = ' '.join(text.split()[gold_start:gold_end])
-                summary = normalize_answer(summary)
-                gold_summary = normalize_answer(gold_summary)
+                    text = gold_standard_summaries.readline()
+                    summary = ' '.join(text.split()[start_index:end_index])
+                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
+                    summary = normalize_answer(summary)
+                    gold_summary = normalize_answer(gold_summary)
 
-                f.write(summary + ' \n')
-                f.write(gold_summary + ' \n')
+                    f.write('\n')
+                    f.write(summary + ' \n')
+                    f.write(gold_summary + ' \n')
 
-                x = range(start_index,end_index + 1)
-                y = range(gold_start,gold_end + 1)
-                xs = set(x)
-                overlap = xs.intersection(y)
-                overlap = len(overlap)
+                    x = range(start_index,end_index + 1)
+                    y = range(gold_start,gold_end + 1)
+                    xs = set(x)
+                    overlap = xs.intersection(y)
+                    overlap = len(overlap)
 
-                if start_index == gold_start:
-                    start_num_exact_correct += 1
-                if end_index == gold_end:
-                    end_num_exact_correct += 1
-                
-                number_indices += 1
-                correct_preds += overlap
-                total_preds += len(x)
-                total_correct += len(y)
+                    if start_index == gold_start:
+                        start_num_exact_correct += 1
+                    if end_index == gold_end:
+                        end_num_exact_correct += 1
+                    
+                    number_indices += 1
+                    correct_preds += overlap
+                    total_preds += len(x)
+                    total_correct += len(y)
 
             start_exact_match = start_num_exact_correct/number_indices
             end_exact_match = end_num_exact_correct/number_indices
@@ -476,6 +482,7 @@ class SequencePredictor():
             f.write('dev_file: %s \n' % self.dev_data_file)
             f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
             f.close()
+            f_preds.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
     
@@ -509,22 +516,36 @@ class SequencePredictor():
         print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
-        return f1
+        return f1,loss
     
     def fit(self, sess, saver):
         best_score = 0.
         epoch_scores = []
+        losses = []
         for epoch in range(self.num_epochs):
             tf.get_variable_scope().reuse_variables()
             print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
-            score = self.run_epoch(sess)
+            score, loss = self.run_epoch(sess)
             if score > best_score:
                 best_score = score
                 if saver:
                     print('New best score! Saving model in /data/'+ train_name+ '/weights/summarizer.weights')
                     saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
+            losses.append(loss)
             print("")
+        print "losses"
+        print losses
+        print "epoch_scores"
+        print epoch_scores
+        file_name = train_name + "/" + "losses_scores_" + str(time.time()) + ".txt"
+        with open(file_name, "w") as f:
+            for loss in losses:
+                f.write(str(loss) + "\n")
+            f.write("\n")
+            for score in epoch_scores:
+                f.write(str(score) + "\n")
+        f.close()
 
     def initialize_model(self):
         self.add_placeholders()
