@@ -27,14 +27,14 @@ t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "pointername" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
-
+train = True
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 50
-        self.num_epochs = 1
-        self.bill_length = 30
+        self.num_epochs = 10
+        self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -43,7 +43,7 @@ class SequencePredictor():
         self.mask_placeholder = None
         self.hidden_size = 20
         self.predictions = []
-        self.batch_size = 5
+        self.batch_size = 10
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
@@ -72,7 +72,7 @@ class SequencePredictor():
         self.dev_sequence_data_file = "sequences_dev_bills_3_150.txt"
         self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
 
-        self.test_data_file =  "bills_test_bills_3_150.txt"
+        self.test_data_file =  "bills_dev_bills_3_150.txt"
         self.test_summary_data_file =  "summaries_test_bills_3_150.txt"
         self.test_indices_data_file = "indices_test_bills_3_150.txt"
         self.test_sequence_data_file = "sequences_test_bills_3_150.txt"
@@ -82,6 +82,23 @@ class SequencePredictor():
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
+
+
+    def batch_gen_test(self, embedding_lookup, bill_data_path):
+        
+        current_batch_bills = []
+        with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+            for bill in source_file:
+                bill_list = [self.embedding_wrapper.get_value(word) for word in bill.split()]
+                padded_bill = bill_list[:self.bill_length]
+                for i in xrange(0, self.bill_length - len(padded_bill)):
+                    padded_bill.append(self.embedding_wrapper.get_value(self.embedding_wrapper.pad))
+
+                current_batch_bills.append(padded_bill)
+                if len(current_batch_bills) == self.batch_size:
+                    yield current_batch_bills
+                    current_batch_bills = []
+
 
     def batch_generator(self,embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
@@ -141,13 +158,16 @@ class SequencePredictor():
             padded_masks = []
             padded_keywords = []
 
-    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch, start_labels_batch = None, end_labels_batch = None):
+    def create_feed_dict(self, inputs_batch, masks_batch=None, sequences=None, keywords_batch=None, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
-            self.inputs_placeholder : inputs_batch,
-            self.mask_placeholder : masks_batch,
-            self.sequences_placeholder : sequences,
-            self.keywords_placeholder : keywords_batch
+            self.inputs_placeholder : inputs_batch
             }
+        if masks_batch is not None:
+            feed_dict[self.mask_placeholder] = masks_batch
+        if sequences is not None:
+            feed_dict[self.sequences_placeholder] = sequences
+        if keywords_batch is not None:
+            feed_dict[self.keywords_placeholder] = keywords_batch
         if start_labels_batch is not None:
             feed_dict[self.start_index_labels_placeholder] = start_labels_batch
         if end_labels_batch is not None:
@@ -244,7 +264,7 @@ class SequencePredictor():
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
-                p_start = tf.nn.dropout(p_start,self.dropout)
+                # p_start = tf.nn.dropout(p_start,self.dropout)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
@@ -254,7 +274,7 @@ class SequencePredictor():
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
-                p_end = tf.nn.dropout(p_end, self.dropout)
+                # p_end = tf.nn.dropout(p_end, self.dropout)
                 
 
                 p_start = tf.squeeze(p_start)
@@ -302,6 +322,22 @@ class SequencePredictor():
         #     tf.summary.histogram('gradients', grad)
         return self.train_op    
 
+
+    def test_output(self, sess):
+        start_preds = []
+        end_preds = []
+        for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
+            start_, end_ = self.predict_on_batch(sess, inputs)
+            print "start:"
+            print start_
+            print "end: "
+            print end_
+            start_preds += start_.tolist()
+            end_preds += end_.tolist()
+        return zip(start_preds, end_preds)
+
+
+
     def output(self, sess):
         start_preds = []
         end_preds = []
@@ -315,7 +351,7 @@ class SequencePredictor():
             count +=1
         return zip(start_preds, end_preds)
 
-    def evaluate_test(self, sess):
+    def evaluate_helper(self, start_preds, end):
         return 0
 
 
@@ -326,7 +362,7 @@ class SequencePredictor():
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
         start_num_exact_correct, end_num_exact_correct = 0, 0
         gold_standard_summaries = open(data_file, 'r')
-        gold_indices = open(indices, 'r')
+        gold_indices = open(indices_file, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
@@ -418,7 +454,7 @@ class SequencePredictor():
         
         return (start_exact_match, end_exact_match), (p, r, f1)
     
-    def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
+    def predict_on_batch(self, sess, inputs_batch, start_index_labels=None, end_index_labels=None, mask_batch=None, sequence_batch=None, keywords_batch=None):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
         # print predictions
@@ -490,14 +526,28 @@ def build_model(embedding_wrapper):
         if not os.path.exists('./data/'+ train_name+ '/weights/'):
             os.makedirs('./data/'+ train_name+ '/weights/')        
         saver = tf.train.Saver()
+        
         with tf.Session() as session:
             session.run(init)
-            model.fit(session, saver)
-            print "Testing..."
-            print 'Restoring the best model weights found on the dev set'
-            saver.restore(session, './data/'+ train_name+ '/weights/summarizer.weights')
-            exact_match, entity_scores = self.evaluate_two_hots(sess, self.test_data_file, self.test_indices_data_file, True)
-            print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])                        
+            if train:
+                model.fit(session, saver)
+            
+            else:
+                print "Testing..."
+                print 'Restoring the best model weights found on the dev set'
+                saver.restore(session, './data/'+ train_name+ '/weights/summarizer.weights')
+
+                # for start_preds, end_preds in model.test_output(session):
+                #     print "start preds: "
+                #     print start_preds
+                #     print "end preds: "
+                #     print end_preds
+
+
+                       
+
+
+
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)
@@ -507,6 +557,7 @@ def main():
     embedding_wrapper.build_vocab()
     embedding_wrapper.process_glove()
     build_model(embedding_wrapper)
+    # test_model()
 
 
 
