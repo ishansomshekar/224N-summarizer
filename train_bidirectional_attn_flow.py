@@ -56,20 +56,20 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_3_150.txt" #"train_bills_3_context.txt"
-        self.train_summary_data_file = "summaries_train_bills_3_150.txt"
-        self.train_indices_data_file = "indices_train_bills_3_150.txt"
-        self.train_sequence_data_file = "sequences_train_bills_3_150.txt"
-        self.train_keyword_data_file = "train_bills_3_keywords.txt"
+        self.train_data_file = "bills_train_bills_4_150.txt" #"train_bills_3_context.txt"
+        self.train_summary_data_file = "summaries_train_bills_4_150.txt"
+        self.train_indices_data_file = "indices_train_bills_4_150.txt"
+        self.train_sequence_data_file = "sequences_train_bills_4_150.txt"
+        self.train_keyword_data_file = "train_bills_4_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_dev_bills_3_150.txt"
-        self.dev_summary_data_file =  "summaries_dev_bills_3_150.txt"
-        self.dev_indices_data_file = "indices_dev_bills_3_150.txt"
-        self.dev_sequence_data_file = "sequences_dev_bills_3_150.txt"
-        self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
+        self.dev_data_file =  "bills_dev_bills_4_150.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_4_150.txt"
+        self.dev_indices_data_file = "indices_dev_bills_4_150.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_4_150.txt"
+        self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
