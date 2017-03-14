@@ -33,8 +33,8 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 50
-        self.num_epochs = 10
-        self.bill_length = 151
+        self.num_epochs = 1
+        self.bill_length = 30
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -70,6 +70,13 @@ class SequencePredictor():
         self.dev_indices_data_file = "indices_dev_bills_3_150.txt"
         self.dev_sequence_data_file = "sequences_dev_bills_3_150.txt"
         self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
+
+        self.test_data_file =  "bills_test_bills_3_150.txt"
+        self.test_summary_data_file =  "summaries_test_bills_3_150.txt"
+        self.test_indices_data_file = "indices_test_bills_3_150.txt"
+        self.test_sequence_data_file = "sequences_test_bills_3_150.txt"
+        self.test_keyword_data_file = "test_bills_3_keywords.txt"
+
 
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
@@ -308,7 +315,7 @@ class SequencePredictor():
             W2_end = tf.get_variable('W2_end', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64)
             vt_end = tf.get_variable('vt_end', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
 
-            # W3 = tf.get_variable('W3', (self.bill_length, self.bill_length), initializer=tf.constant_initializer(np.eye(self.bill_length)), dtype = tf.float64)
+            W3 = tf.get_variable('W3', (self.batch_size, self.batch_size), initializer=tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64)
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
             
@@ -335,7 +342,7 @@ class SequencePredictor():
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
-                # p_end = tf.add(tf.matmul(p_start, W3), p_end)
+                p_end = tf.add(tf.matmul(W3, p_start), p_end)
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
@@ -404,12 +411,23 @@ class SequencePredictor():
             count +=1
         return zip(start_preds, end_preds)
 
-    def evaluate_two_hots(self, sess):
+    def evaluate_test(self, sess):
+        return 0
+
+
+
+
+
+    def evaluate_two_hots(self, sess, data_file, indices_file, is_test):
         correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
         start_num_exact_correct, end_num_exact_correct = 0, 0
-        gold_standard_summaries = open(self.dev_data_file, 'r')
-        gold_indices = open(self.dev_indices_data_file, 'r')
+        gold_standard_summaries = open(data_file, 'r')
+        gold_indices = open(indices, 'r')
         file_name = train_name + "/" + str(time.time()) + ".txt"
+        if is_test:
+            file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
+
+        
         with open(file_name, 'a') as f:
             for start_preds, end_preds in self.output(sess):
                 print "start preds: "
@@ -585,6 +603,7 @@ class SequencePredictor():
             f.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
+
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
@@ -612,7 +631,7 @@ class SequencePredictor():
         print("")
 
         print("Evaluating on development data")
-        exact_match, entity_scores = self.evaluate_two_hots(sess)
+        exact_match, entity_scores = self.evaluate_two_hots(sess, self.dev_data_file, self.dev_indices_data_file, False)
         print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])
 
         f1 = entity_scores[-1]
@@ -628,8 +647,8 @@ class SequencePredictor():
             if score > best_score:
                 best_score = score
                 if saver:
-                    print("New best score! Saving model in %s" % self.model_output)
-                    saver.save(sess, self.model_output)
+                    print('New best score! Saving model in /data/'+ train_name+ '/weights/summarizer.weights')
+                    saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
             print("")
 
@@ -655,10 +674,17 @@ def build_model(embedding_wrapper):
         tf.get_variable_scope().reuse_variables()
         init = tf.global_variables_initializer()
         tf.get_variable_scope().reuse_variables()
+        if not os.path.exists('./data/'+ train_name+ '/weights/'):
+            os.makedirs('./data/'+ train_name+ '/weights/')        
         saver = tf.train.Saver()
         with tf.Session() as session:
             session.run(init)
             model.fit(session, saver)
+            print "Testing..."
+            print 'Restoring the best model weights found on the dev set'
+            saver.restore(session, './data/'+ train_name+ '/weights/summarizer.weights')
+            exact_match, entity_scores = self.evaluate_two_hots(sess, self.test_data_file, self.test_indices_data_file, True)
+            print("Entity level end_exact_match/start_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f", exact_match[0], exact_match[1], entity_scores[0], entity_scores[1], entity_scores[2])                        
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)
