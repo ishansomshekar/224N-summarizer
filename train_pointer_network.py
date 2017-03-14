@@ -28,6 +28,7 @@ timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "pointername" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
 
+
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
@@ -74,6 +75,31 @@ class SequencePredictor():
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
 
+
+    def softmax(self, x):
+        orig_shape = x.get_shape()
+
+        if len(orig_shape) > 1:
+            # Matrix
+            ### YOUR CODE HERE
+            all_max = tf.reduce_max(x, axis = 1)
+            all_max = tf.reshape(all_max.get_shape()[0], 1)
+            x = x - all_max
+            e_x = tf.exp(x)
+            denum = tf.reduce_sum(e_x, axis = 1)
+            denum = denum.reshape(denum.shape[0],1)
+            return e_x / denum
+            ### END YOUR CODE
+        else:
+            # Vector
+            ### YOUR CODE HERE
+            e_x = tf.exp(x - tf.reduce_max(x))
+            return e_x / tf.reduce_sum(e_x)
+            ### END YOUR CODE
+
+        assert x.shape == orig_shape
+        return x
+
     def batch_generator(self,embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
         f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
@@ -115,26 +141,26 @@ class SequencePredictor():
                 #     start_index_one_hot[i] = 1
 
                 #now pad start_index_one_hot starting at sequence_len to be alternating 0 and 1 to mask loss
-                if (len(start_index_one_hot) > len(bill_list)):
-                    val = 0
-                    for i in xrange(0, len(start_index_one_hot) - sequence_len):
-                        start_index_one_hot[sequence_len + i] = val
-                        val ^= 1
+                # if (len(start_index_one_hot) > len(bill_list)):
+                #     val = 0
+                #     for i in xrange(0, len(start_index_one_hot) - sequence_len):
+                #         start_index_one_hot[sequence_len + i] = val
+                #         val ^= 1
 
                 #generate normal distribution
                 # distrib = np.random.normal(1.0, 0.5, int(.05 * len(start_index_one_hot)))
                 # distrib = [x % 1. for x in distrib]
-                distrib = [0.75, 0.5, 0.25]
+                #distrib = [0.75, 0.5, 0.25]
                 # print "distrb: "
                 # print distrib
-                distrib = sorted(distrib, reverse = True)
+                #distrib = sorted(distrib, reverse = True)
                 #now, add around the one hot
-                for idx, value in enumerate(distrib):
-                    idx += 1
-                    if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
-                        start_index_one_hot[start_index - idx] = value
-                    if (start_index + idx) < len(start_index_one_hot):
-                        start_index_one_hot[start_index + idx] = value
+                # for idx, value in enumerate(distrib):
+                #     idx += 1
+                #     if (start_index - idx) > 0 and (start_index - idx) < len(start_index_one_hot):
+                #         start_index_one_hot[start_index - idx] = value
+                #     if (start_index + idx) < len(start_index_one_hot):
+                #         start_index_one_hot[start_index + idx] = value
 
                 end_index_one_hot = [0] * MAX_BILL_LENGTH
                 if end_index >= MAX_BILL_LENGTH:
@@ -143,12 +169,12 @@ class SequencePredictor():
                 else:
                     end_index_one_hot[end_index] = 1
 
-                for idx, value in enumerate(distrib):
-                    idx += 1
-                    if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
-                        end_index_one_hot[end_index - idx] = value
-                    if (end_index + idx) < len(end_index_one_hot):
-                        end_index_one_hot[end_index + idx] = value
+                # for idx, value in enumerate(distrib):
+                #     idx += 1
+                #     if (end_index - idx) > 0 and (end_index - idx) < len(end_index_one_hot):
+                #         end_index_one_hot[end_index - idx] = value
+                #     if (end_index + idx) < len(end_index_one_hot):
+                #         end_index_one_hot[end_index + idx] = value
 
                 padded_masks.append(mask)
                 padded_bills.append(padded_bill)
@@ -281,6 +307,8 @@ class SequencePredictor():
             W1_end = tf.get_variable('W1_end', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64) 
             W2_end = tf.get_variable('W2_end', (self.batch_size, self.batch_size), initializer = tf.constant_initializer(np.eye(self.batch_size)), dtype = tf.float64)
             vt_end = tf.get_variable('vt_end', (self.hidden_size * 4,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
+
+            # W3 = tf.get_variable('W3', (self.bill_length, self.bill_length), initializer=tf.constant_initializer(np.eye(self.bill_length)), dtype = tf.float64)
             # b2_1 = tf.get_variable('b2_1', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)
             # b2_2 = tf.get_variable('b2_2', (self.bill_length,1), initializer = tf.contrib.layers.xavier_initializer(), dtype = tf.float64)            
             
@@ -307,31 +335,42 @@ class SequencePredictor():
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
+                # p_end = tf.add(tf.matmul(p_start, W3), p_end)
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
-                preds_start.append(tf.nn.softmax(p_start, dim = 0))
-                preds_end.append(tf.nn.softmax(p_end, dim = 0))
+                p_start = tf.squeeze(p_start)
+                p_end = tf.squeeze(p_end)
+                preds_start.append(p_start)
+                preds_end.append(p_end)
+                # print preds_start
+                # print preds_end
                 # preds_start.append(tf.nn.softmax(p_start)))
                 # preds_end.append(tf.nn.softmax(p_end))
             tf.get_variable_scope().reuse_variables() # set here for each of the next epochs //not working
             assert tf.get_variable_scope().reuse == True
 
+
+        
+        # return (preds_start, preds_end)       
         preds_start = tf.pack(preds_start)
-        preds_start = tf.squeeze(preds_start)
+        # preds_start = tf.squeeze(preds_start)
         preds_start = tf.transpose(preds_start,[1,0])
         preds_end = tf.pack(preds_end)
-        preds_end = tf.squeeze(preds_end)
+        # preds_end = tf.squeeze(preds_end)
         preds_end = tf.transpose(preds_end,[1,0])
+        preds_start = tf.nn.softmax(preds_start)
+        preds_end = tf.nn.softmax(preds_end)
         self.predictions = (preds_start, preds_end)
         # tf.summary.histogram('start_preds', self.predictions[0])
         # tf.summary.histogram('end_preds', self.predictions[1])
-        print (preds_start, preds_end)
+        # print (preds_start, preds_end)
         return (preds_start, preds_end)
 
     def add_loss_op(self, preds):
         # loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
         # loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        # print 
         loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
         loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)
         # masked_loss = tf.boolean_mask(loss_1, self.mask_placeholder)
