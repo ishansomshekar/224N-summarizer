@@ -1,5 +1,4 @@
 from embedding_wrapper import EmbeddingWrapper
-from read_in_datafile import file_generator
 import os
 import numpy as np
 from encoder_decoder_cells import DecoderCell
@@ -34,7 +33,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 151
+        self.bill_length = 10
         self.keywords_length = 5
         self.lr = 0.0001
         self.inputs_placeholder = None
@@ -56,28 +55,55 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_3_150.txt" #"train_bills_3_context.txt"
-        self.train_summary_data_file = "summaries_train_bills_3_150.txt"
-        self.train_indices_data_file = "indices_train_bills_3_150.txt"
-        self.train_sequence_data_file = "sequences_train_bills_3_150.txt"
-        self.train_keyword_data_file = "train_bills_3_keywords.txt"
+        self.train_data_file = "bills_train_bills_4_150.txt" #"train_bills_3_context.txt"
+        self.train_summary_data_file = "summaries_train_bills_4_150.txt"
+        self.train_indices_data_file = "indices_train_bills_4_150.txt"
+        self.train_sequence_data_file = "sequences_train_bills_4_150.txt"
+        #self.train_keyword_data_file = "train_bills_4_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_dev_bills_3_150.txt"
-        self.dev_summary_data_file =  "summaries_dev_bills_3_150.txt"
-        self.dev_indices_data_file = "indices_dev_bills_3_150.txt"
-        self.dev_sequence_data_file = "sequences_dev_bills_3_150.txt"
-        self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
+        self.dev_data_file =  "bills_dev_bills_4_150.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_4_150.txt"
+        self.dev_indices_data_file = "indices_dev_bills_4_150.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_4_150.txt"
+        #self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
         file_open.close()
 
+    def file_generator(self, batch_size, bill_data_path, indices_data_path, sequences_data_path, keywords_data_path):    
+        current_batch_summaries = []
+        current_batch_bills = []
+        current_batch_sequences = []
+        current_batch_keywords = []
+        counter = 0
+        with tf.gfile.GFile(bill_data_path, mode="r") as source_file:
+            with tf.gfile.GFile(indices_data_path, mode="r") as target_file:
+                with tf.gfile.GFile(sequences_data_path, mode="r") as seq_file:
+                    for bill in source_file:
+                        indices = target_file.readline()
+                        sequence_len = seq_file.readline()
+                        counter += 1
+                        start_and_end = indices.split()
+                        current_batch_bills.append(bill)
+                        # keywords = keyword_file.readline()
+                        # keywords_list = keywords.split()
+                        current_batch_summaries.append((int(start_and_end[0]), int(start_and_end[1])))
+                        current_batch_sequences.append(int(sequence_len))
+                        # current_batch_keywords.append(keywords_list)
+                        if len(current_batch_summaries) == batch_size:
+                            yield current_batch_bills, current_batch_summaries, current_batch_sequences, current_batch_keywords
+                            current_batch_bills = []
+                            current_batch_summaries = []
+                            current_batch_sequences = []
+                            current_batch_keywords = []
+
     def batch_generator(self,embedding_wrapper, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath, batch_size, MAX_BILL_LENGTH):
 
-        f_generator = file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
+        f_generator = self.file_generator(batch_size, bill_data_path, indices_data_path, sequences_data_path, key_words_datapath)
 
         #pad the bills and summaries
         print "now padding and encoding batches"
@@ -90,9 +116,9 @@ class SequencePredictor():
             for idx, bill in enumerate(bill_batch):
                 start_index, end_index = indices_batch[idx]
                 sequence_len = sequences[idx]
-                keywords_batch = keywords[idx]
+                #keywords_batch = keywords[idx]
                 bill_list = [embedding_wrapper.get_value(word) for word in bill.split()]
-                padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
+                #padded_keyword = [embedding_wrapper.get_value(word) for word in keywords_batch]
                 # padded_summary = [embedding_wrapper.get_value(word) for word in summary] d g
                 mask = [True] * min(len(bill_list), MAX_BILL_LENGTH)
                 padded_bill = bill_list[:MAX_BILL_LENGTH]
@@ -103,8 +129,8 @@ class SequencePredictor():
                     padded_bill.append(embedding_wrapper.get_value(embedding_wrapper.pad))
                     mask.append(False)
 
-                for i in xrange(0, 5 - len(padded_keyword)):
-                    padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
+                # for i in xrange(0, 5 - len(padded_keyword)):
+                #     padded_keyword.append(embedding_wrapper.get_value(embedding_wrapper.pad))
 
                 start_index_one_hot = [0] * MAX_BILL_LENGTH
                 if start_index >= MAX_BILL_LENGTH:
@@ -124,26 +150,27 @@ class SequencePredictor():
                 padded_bills.append(padded_bill)
                 padded_start_indices.append(start_index_one_hot)
                 padded_end_indices.append(end_index_one_hot)
-                padded_keywords.append(padded_keyword)
+                #padded_keywords.append(padded_keyword)
 
             yield padded_bills, padded_start_indices, padded_end_indices, padded_masks, sequences, padded_keywords
             padded_bills = []
             padded_start_indices = []
             padded_end_indices = []
             padded_masks = []
-            padded_keywords = []
+            #padded_keywords = []
 
-    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch, start_labels_batch = None, end_labels_batch = None):
+    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch = None, start_labels_batch = None, end_labels_batch = None):
         feed_dict = {
             self.inputs_placeholder : inputs_batch,
             self.mask_placeholder : masks_batch,
             self.sequences_placeholder : sequences,
-            self.keywords_placeholder : keywords_batch
             }
         if start_labels_batch is not None:
             feed_dict[self.start_index_labels_placeholder] = start_labels_batch
         if end_labels_batch is not None:
             feed_dict[self.end_index_labels_placeholder] = end_labels_batch
+        if keywords_batch is not None:
+            feed_dict[self.keywords_placeholder] = keywords_batch
         return feed_dict
 
     def add_placeholders(self):
@@ -279,7 +306,7 @@ class SequencePredictor():
         end_preds = []
         prog = Progbar(target=1 + int(self.dev_len/ self.batch_size))
         count = 0
-        for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, self.dev_keyword_data_file, self.batch_size, self.bill_length):
+        for inputs,start_index_labels,end_index_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.dev_data_file, self.dev_indices_data_file, self.dev_sequence_data_file, None, self.batch_size, self.bill_length):
             start_, end_ = self.predict_on_batch(sess, inputs, start_index_labels, end_index_labels, masks, sequences, keywords)
             start_preds += start_.tolist()
             end_preds += end_.tolist()
@@ -340,6 +367,7 @@ class SequencePredictor():
                 summary = normalize_answer(summary)
                 gold_summary = normalize_answer(gold_summary)
 
+                f.write('\n')
                 f.write(summary + ' \n')
                 f.write(gold_summary + ' \n')
 
@@ -380,14 +408,14 @@ class SequencePredictor():
         return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_index_labels)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_index_labels)
         predictions = sess.run(self.predictions, feed_dict=feed)
         # print predictions
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
         #print start_labels_batch
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = keywords_batch, end_labels_batch = end_labels_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_labels_batch)
         ##### THIS IS SO CONFUSING ######
         _, loss= sess.run([self.train_op, self.loss], feed_dict=feed)
         
@@ -396,7 +424,7 @@ class SequencePredictor():
     def run_epoch(self, sess):
         prog = Progbar(target=1 + int(self.train_len / self.batch_size))
         count = 0
-        for inputs,start_labels, end_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, self.train_keyword_data_file, self.batch_size, self.bill_length):
+        for inputs,start_labels, end_labels, masks, sequences, keywords in self.batch_generator(self.embedding_wrapper, self.train_data_file, self.train_indices_data_file, self.train_sequence_data_file, None, self.batch_size, self.bill_length):
             tf.get_variable_scope().reuse_variables()
             loss = self.train_on_batch(sess, inputs, start_labels, end_labels, masks, sequences, keywords)
             prog.update(count + 1, [("train loss", loss)])
