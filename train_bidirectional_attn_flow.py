@@ -220,6 +220,7 @@ class SequencePredictor():
                     tf.get_variable_scope().reuse_variables()
                 o_t, h_t = enc_cell(bill_embeddings[:, time_step, :], initial_state)
                 forward_hidden_states.append(h_t)
+                initial_state = h_t
             #outputs, state = tf.nn.dynamic_rnn(enc_cell,bill_embeddings, dtype = tf.float64) #outputs is (batch_size, bill_length, hidden_size)
         backwards_hidden_states = []
         # initial_state = tf.nn.rnn_cell.RNNCell.zero_state(self.batch_size, dtype=tf.float64)
@@ -233,6 +234,7 @@ class SequencePredictor():
                     tf.get_variable_scope().reuse_variables()
                 o_t, h_t = bck_cell(reverse_embeddings[:, time_step, :], initial_state)
                 backwards_hidden_states.append(h_t)
+                initial_state = h_t
         
         forward_hidden_states = [tf.concat(1, [hidden_state[0], hidden_state[1]]) for hidden_state in forward_hidden_states]
         forward_hidden_states = tf.pack(forward_hidden_states) #should now be (batch_size, bill_length, hidden_size)
@@ -262,6 +264,9 @@ class SequencePredictor():
                
                 o_t, h_t = cell(bill_embeddings[:, time_step, :], state) # o_t is batch_size, 1
                 all_hidden_states.append(h_t)
+
+                state = h_t
+
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
@@ -289,12 +294,16 @@ class SequencePredictor():
                     tf.get_variable_scope().reuse_variables()
                 
                 o_t, h_t = end_cell(bill_embeddings[:, time_step, :], state) # o_t is batch_size, 1
+
+                state = h_t
+
                 x_end = tf.matmul(W1_end, all_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
                 p_end = tf.squeeze(p_end)
                 preds_end.append(p_end)
+
                 tf.get_variable_scope().reuse_variables() 
                 assert tf.get_variable_scope().reuse == True      
         preds_end = tf.pack(preds_end)
