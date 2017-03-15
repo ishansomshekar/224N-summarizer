@@ -6,7 +6,7 @@ from evaluate_prediction import normalize_answer
 gold_summaries_file = "summaries_dev_bills_4_150.txt"
 gold_indices_file = "indices_dev_bills_4_150.txt"
 
-pred_file = "preds-attn-final.txt"
+pred_file = "preds_adam_2nd.txt"
 
 def evaluate():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
@@ -16,21 +16,28 @@ def evaluate():
     with open(pred_file) as f:
         count = 0
         while True:
-            gold = gold_indices.readline()
-            gold = gold.split()
-            gold_start = int(gold[0])
-            gold_end = int(gold[1])
 
             first = f.readline()
             if first[:3] == 'end':
                 break
             a = ast.literal_eval(first)
-            np_start_preds = np.asarray(a).astype(np.float)
+            #np_start_preds = np.asarray(a).astype(np.float)
 
             b = ast.literal_eval(f.readline())
-            np_end_preds = np.asarray(a).astype(np.float)
+            #np_end_preds = np.asarray(a).astype(np.float)
             f.readline()
 
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
+
+            gold = gold_indices.readline()
+            gold = gold.split()
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+
+            np_start_preds = np.asarray(a)
             start_maxima = argrelextrema(np_start_preds, np.greater)[0]
             tuples = [(x, np_start_preds[x]) for x in start_maxima]
             # print tuples
@@ -41,7 +48,7 @@ def evaluate():
             else:
                 start_index = start_preds.index(max(start_preds))
 
-            #np_end_preds = np.asarray(end_preds)
+            np_end_preds = np.asarray(b)
             end_maxima = argrelextrema(np_end_preds, np.greater)[0]
             # print "###########"
             # print end_maxima
@@ -54,7 +61,13 @@ def evaluate():
             else:
                 end_index = end_preds.index(max(end_preds))
 
-            if end_index <= start_index:
+            # print
+            # print "gold start ", (gold_start)
+            # print "our start " , (start_index)
+            # print "gold end ", (gold_end)
+            # print "our end ", (end_index)
+
+            if (end_index <= start_index):
                 count += 1
 
             # text = gold_standard_summaries.readline()
@@ -83,11 +96,11 @@ def evaluate():
             total_preds += len(x)
             total_correct += len(y)
 
-        start_exact_match = start_num_exact_correct/number_indices
-        end_exact_match = end_num_exact_correct/number_indices
-        p = correct_preds / total_preds if correct_preds > 0 else 0
-        r = correct_preds / total_correct if correct_preds > 0 else 0
-        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+            start_exact_match = start_num_exact_correct/number_indices
+            end_exact_match = end_num_exact_correct/number_indices
+            p = correct_preds / total_preds if correct_preds > 0 else 0
+            r = correct_preds / total_correct if correct_preds > 0 else 0
+            f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
     print "evaluate:   "
     print start_exact_match, end_exact_match, p, r, f1
@@ -109,12 +122,12 @@ def localminimaworestriction():
                 break
             a = ast.literal_eval(first)
             # print a
-            a = np.asarray(a).astype(np.float)
+            a = np.asarray(a)
 
             # ep = f.readline()
             b = ast.literal_eval(f.readline())
             # print b
-            b = np.asarray(a).astype(np.float)
+            b = np.asarray(b)
 
             f.readline()
 
@@ -214,12 +227,12 @@ def localminima():
                 break
             a = ast.literal_eval(first)
             # print a
-            a = np.asarray(a).astype(np.float)
+            a = np.asarray(a)
 
             # ep = f.readline()
             b = ast.literal_eval(f.readline())
             # print b
-            b = np.asarray(a).astype(np.float)
+            b = np.asarray(b)
 
             f.readline()
 
@@ -319,12 +332,12 @@ def neither_fixed():
                 break
             a = ast.literal_eval(first)
             # print a
-            a = np.asarray(a).astype(np.float)
+            a = np.asarray(a)
 
             # ep = f.readline()
             b = ast.literal_eval(f.readline())
             # print b
-            b = np.asarray(a).astype(np.float)
+            b = np.asarray(b)
 
             f.readline()
 
@@ -389,6 +402,84 @@ def neither_fixed():
 
     print "########################################################"    
 
+def end_max_fixed():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open(gold_indices_file, 'r')
+    lengths = []
+    with open(pred_file) as f:
+        while True:
+            # sp = f.readline()
+            # if not sp:
+            #     break
+            first = f.readline()
+            if first[:3] == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            a = np.asarray(a)
+
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            b = np.asarray(b)
+
+            f.readline()
+
+            # print a
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
+
+            b_idx = np.argmax(b)
+            #if out of bounds, fix it
+            a_idx = b_idx
+            while a_idx >= b_idx:
+                a_idx = np.argmax(a)
+                a[a_idx] = 0
+
+            lengths.append(b_idx - a_idx)
+
+            gold = gold_indices.readline()
+            gold = gold.split()
+            # print gold
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+            start_index = int(a_idx)
+            end_index = int(b_idx)
+
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+            # print(start_index, end_index)
+            # print (gold_start, gold_end)
+            # print
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
+
+    start_exact_match = start_num_exact_correct/number_indices
+    end_exact_match = end_num_exact_correct/number_indices
+    p = correct_preds / total_preds if correct_preds > 0 else 0
+    r = correct_preds / total_correct if correct_preds > 0 else 0
+    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+    print "max_fixed:"
+    print start_exact_match, end_exact_match, p, r, f1
+    print "mean: "
+    print sum(lengths)/len(lengths)
+
+    print "########################################################" 
+
 def max_fixed():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
@@ -404,12 +495,12 @@ def max_fixed():
                 break
             a = ast.literal_eval(first)
             # print a
-            a = np.asarray(a).astype(np.float)
+            a = np.asarray(a)
 
             # ep = f.readline()
             b = ast.literal_eval(f.readline())
             # print b
-            b = np.asarray(a).astype(np.float)
+            b = np.asarray(b)
 
             f.readline()
 
@@ -465,14 +556,13 @@ def max_fixed():
     print "mean: "
     print sum(lengths)/len(lengths)
 
-
-
     print "########################################################" 
 
-# evaluate()
+evaluate()
 localminima()
 neither_fixed()
 max_fixed()
+end_max_fixed()
 
 
 
