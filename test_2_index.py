@@ -1,18 +1,110 @@
 import numpy as np
 import ast
+from scipy.signal import argrelextrema
 
-def start_fixed():
+def evaluate():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_4_150.txt", 'r')
+    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
 
-    with open('preds_1489530111.91.txt') as f:
+    with open('preds_pointer100.txt') as f:
+        count = 0
+        while True:
+            gold = gold_indices.readline()
+            gold = gold.split()
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+
+            first = f.readline()
+            if first[:3] == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            np_start_preds = np.asarray(a).astype(np.float)
+
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            np_end_preds = np.asarray(a).astype(np.float)
+
+            f.readline()
+
+            # np_start_preds = np.asarray(start_preds)
+            start_maxima = argrelextrema(np_start_preds, np.greater)[0]
+            tuples = [(x, np_start_preds[x]) for x in start_maxima]
+            # print tuples
+            start_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(start_maxima) > 0:
+                start_index = start_maxima[-1][0]
+            else:
+                start_index = start_preds.index(max(start_preds))
+
+            #np_end_preds = np.asarray(end_preds)
+            end_maxima = argrelextrema(np_end_preds, np.greater)[0]
+            # print "###########"
+            # print end_maxima
+            tuples = [(x, np_end_preds[x]) for x in end_maxima]
+            # print tuples
+            end_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(end_maxima) > 0:
+                end_index = end_maxima[-1][0]
+            else:
+                end_index = end_preds.index(max(end_preds))
+
+            if end_index <= start_index:
+                count += 1
+
+            # text = gold_standard_summaries.readline()
+            # summary = ' '.join(text.split()[start_index:end_index])
+            # gold_summary = ' '.join(text.split()[gold_start:gold_end])
+            # summary = normalize_answer(summary)
+            # gold_summary = normalize_answer(gold_summary)
+
+            # f.write('\n')
+            # f.write(summary + ' \n')
+            # f.write(gold_summary + ' \n')
+
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
+
+        start_exact_match = start_num_exact_correct/number_indices
+        end_exact_match = end_num_exact_correct/number_indices
+        p = correct_preds / total_preds if correct_preds > 0 else 0
+        r = correct_preds / total_correct if correct_preds > 0 else 0
+        f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+    print "evaluate:   "
+    print start_exact_match, end_exact_match, p, r, f1
+    print "these had invalid end indices: ", count
+
+def localminimaworestriction():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+
+    with open('preds_pointer100.txt') as f:
+        count = 0
         while True:
             # sp = f.readline()
             # if not sp:
             #     break
             first = f.readline()
-            if first == 'end':
+            if first[:3] == 'end':
                 break
             a = ast.literal_eval(first)
             # print a
@@ -31,14 +123,30 @@ def start_fixed():
             b = np.exp(b - np.amax(b))
             b = b / np.sum(b)
 
-            a_idx = np.argmax(a)
-            a_max = a[a_idx]
-            b_idx = a_idx + 1
-            total_max = a[a_idx] * b[b_idx]
-            for i in xrange(a_idx + 1, len(b) - 1):
-                if a_max * b[i] > total_max:
-                    b_idx = i
-                    total_max = a_max * b[b_idx]
+            start_maxima = argrelextrema(a, np.greater)[0]
+            tuples = [(x, a[x]) for x in start_maxima]
+            # print tuples
+            start_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(start_maxima) > 0:
+                a_idx = start_maxima[-1][0]
+            else:
+                a_idx = np.argmax(a)
+
+            end_maxima = argrelextrema(b, np.greater)[0]
+            # print "###########"
+            # print end_maxima
+            tuples = [(x, b[x]) for x in end_maxima]
+            # print tuples
+            end_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(end_maxima) > 0:
+                b_idx = end_maxima[-1][0]
+            else:
+                b_idx = np.argmax(b)
+
+            if b_idx <= a_idx:
+                count += 1
 
             # text = gold_standard_summaries.readline()
             # summary = ' '.join(text.split()[start_index:end_index])
@@ -82,7 +190,105 @@ def start_fixed():
     r = correct_preds / total_correct if correct_preds > 0 else 0
     f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
-    print "start_index_fixed:   "
+    print "local minima without restriction:   "
+    print start_exact_match, end_exact_match, p, r, f1
+    print "these had invalid end indices: ", count
+
+def localminima():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+
+    with open('preds_pointer100.txt') as f:
+        while True:
+            # sp = f.readline()
+            # if not sp:
+            #     break
+            first = f.readline()
+            if first[:3] == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            a = np.asarray(a).astype(np.float)
+
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            b = np.asarray(a).astype(np.float)
+
+            f.readline()
+
+            # print a
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
+
+            start_maxima = argrelextrema(a, np.greater)[0]
+            tuples = [(x, a[x]) for x in start_maxima]
+            # print tuples
+            start_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(start_maxima) > 0:
+                a_idx = start_maxima[-1][0]
+            else:
+                a_idx = np.argmax(a)
+
+            end_maxima = argrelextrema(b, np.greater)[0]
+            # print "###########"
+            # print end_maxima
+            tuples = [(x, b[x]) for x in end_maxima if x > a_idx]
+            # print tuples
+            end_maxima = sorted(tuples, key = lambda x: x[1])
+            # print maxima
+            if len(end_maxima) > 0:
+                b_idx = end_maxima[-1][0]
+            else:
+                b_idx = np.argmax(b)
+
+            # text = gold_standard_summaries.readline()
+            # summary = ' '.join(text.split()[start_index:end_index])
+            # gold_summary = ' '.join(text.split()[gold_start:gold_end])
+            # summary = normalize_answer(summary)
+            # gold_summary = normalize_answer(gold_summary)
+
+            # print(f.readline())
+            # print(f.readline())
+            # print(f.readline())
+            # print(f.readline())
+
+            gold = gold_indices.readline()
+            gold = gold.split()
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+            start_index = int(a_idx)
+            end_index = int(b_idx)
+
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+            # print(start_index, end_index)
+            # print (gold_start, gold_end)
+            # print
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
+
+    start_exact_match = start_num_exact_correct/number_indices
+    end_exact_match = end_num_exact_correct/number_indices
+    p = correct_preds / total_preds if correct_preds > 0 else 0
+    r = correct_preds / total_correct if correct_preds > 0 else 0
+    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+    print "local minima:   "
     print start_exact_match, end_exact_match, p, r, f1
 
 
@@ -90,15 +296,15 @@ def start_fixed():
 def neither_fixed():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_4_150.txt", 'r')
+    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
 
-    with open('preds_1489530111.91.txt') as f:
+    with open('preds_pointer100.txt') as f:
         while True:
             # sp = f.readline()
             # if not sp:
             #     break
             first = f.readline()
-            if first == 'end':
+            if first[:3] == 'end':
                 break
             a = ast.literal_eval(first)
             # print a
@@ -132,6 +338,7 @@ def neither_fixed():
 
             gold = gold_indices.readline()
             gold = gold.split()
+            # print gold
             gold_start = int(gold[0])
             gold_end = int(gold[1])
             start_index = int(a_idx)
@@ -167,8 +374,86 @@ def neither_fixed():
 
     print "########################################################"    
 
+def max_fixed():
+    correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+    start_num_exact_correct, end_num_exact_correct = 0, 0
+    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+
+    with open('preds_pointer100.txt') as f:
+        while True:
+            # sp = f.readline()
+            # if not sp:
+            #     break
+            first = f.readline()
+            if first[:3] == 'end':
+                break
+            a = ast.literal_eval(first)
+            # print a
+            a = np.asarray(a).astype(np.float)
+
+            # ep = f.readline()
+            b = ast.literal_eval(f.readline())
+            # print b
+            b = np.asarray(a).astype(np.float)
+
+            f.readline()
+
+            # print a
+            a = np.exp(a - np.amax(a))
+            a = a / np.sum(a)
+            b = np.exp(b - np.amax(b))
+            b = b / np.sum(b)
+
+            a_idx = np.argmax(a)
+            #if out of bounds, fix it
+            b_idx = a_idx
+            while b_idx <= a_idx:
+                b_idx = np.argmax(b)
+                b[b_idx] = 0
+
+            gold = gold_indices.readline()
+            gold = gold.split()
+            # print gold
+            gold_start = int(gold[0])
+            gold_end = int(gold[1])
+            start_index = int(a_idx)
+            end_index = int(b_idx)
+
+            x = range(start_index,end_index + 1)
+            y = range(gold_start,gold_end + 1)
+            xs = set(x)
+            overlap = xs.intersection(y)
+            overlap = len(overlap)
+            # print(start_index, end_index)
+            # print (gold_start, gold_end)
+            # print
+            if start_index == gold_start:
+                start_num_exact_correct += 1
+            if end_index == gold_end:
+                end_num_exact_correct += 1
+            
+            number_indices += 1
+            correct_preds += overlap
+            total_preds += len(x)
+            total_correct += len(y)
+
+    start_exact_match = start_num_exact_correct/number_indices
+    end_exact_match = end_num_exact_correct/number_indices
+    p = correct_preds / total_preds if correct_preds > 0 else 0
+    r = correct_preds / total_correct if correct_preds > 0 else 0
+    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+    print "max_fixed:"
+    print start_exact_match, end_exact_match, p, r, f1
+
+
+    print "########################################################" 
+
+evaluate()
+localminima()
+localminimaworestriction()
 neither_fixed()
-start_fixed()
+max_fixed()
 
 
 
