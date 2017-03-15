@@ -1,13 +1,19 @@
 import numpy as np
 import ast
 from scipy.signal import argrelextrema
+from evaluate_prediction import normalize_answer
+
+gold_summaries_file = "summaries_dev_bills_4_150.txt"
+gold_indices_file = "indices_dev_bills_4_150.txt"
+
+pred_file = "preds-attn-final.txt"
 
 def evaluate():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+    gold_indices = open(gold_indices_file, 'r')
 
-    with open('preds_pointer100.txt') as f:
+    with open(pred_file) as f:
         count = 0
         while True:
             gold = gold_indices.readline()
@@ -19,17 +25,12 @@ def evaluate():
             if first[:3] == 'end':
                 break
             a = ast.literal_eval(first)
-            # print a
             np_start_preds = np.asarray(a).astype(np.float)
 
-            # ep = f.readline()
             b = ast.literal_eval(f.readline())
-            # print b
             np_end_preds = np.asarray(a).astype(np.float)
-
             f.readline()
 
-            # np_start_preds = np.asarray(start_preds)
             start_maxima = argrelextrema(np_start_preds, np.greater)[0]
             tuples = [(x, np_start_preds[x]) for x in start_maxima]
             # print tuples
@@ -95,9 +96,9 @@ def evaluate():
 def localminimaworestriction():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+    gold_indices = open(gold_indices_file, 'r')
 
-    with open('preds_pointer100.txt') as f:
+    with open(pred_file) as f:
         count = 0
         while True:
             # sp = f.readline()
@@ -195,11 +196,15 @@ def localminimaworestriction():
     print "these had invalid end indices: ", count
 
 def localminima():
+    gold_summaries = open(gold_summaries_file, 'r')
+    #bills = open('bills_dev_bills_5_250.txt', 'r')
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
+    gold_indices = open(gold_indices_file, 'r')
 
-    with open('preds_pointer100.txt') as f:
+    #summaries_consolidated = open("summaries_from_preds", "w")
+    lengths = []
+    with open(pred_file) as f:
         while True:
             # sp = f.readline()
             # if not sp:
@@ -246,11 +251,13 @@ def localminima():
             else:
                 b_idx = np.argmax(b)
 
-            # text = gold_standard_summaries.readline()
-            # summary = ' '.join(text.split()[start_index:end_index])
-            # gold_summary = ' '.join(text.split()[gold_start:gold_end])
+            # text = bills.readline()
+            # summary = ' '.join(text.split()[a_idx:b_idx])
+            # gold_summary = gold_summaries.readline()
             # summary = normalize_answer(summary)
             # gold_summary = normalize_answer(gold_summary)
+            # summaries_consolidated.write(summary + "\n")
+            # summaries_consolidated.write(gold_summary + "\n")
 
             # print(f.readline())
             # print(f.readline())
@@ -263,6 +270,8 @@ def localminima():
             gold_end = int(gold[1])
             start_index = int(a_idx)
             end_index = int(b_idx)
+
+            lengths.append(end_index - start_index)
 
             x = range(start_index,end_index + 1)
             y = range(gold_start,gold_end + 1)
@@ -290,15 +299,17 @@ def localminima():
 
     print "local minima:   "
     print start_exact_match, end_exact_match, p, r, f1
+    print "mean: "
+    print sum(lengths)/len(lengths)
 
 
 
 def neither_fixed():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
-
-    with open('preds_pointer100.txt') as f:
+    gold_indices = open(gold_indices_file, 'r')
+    lengths = []
+    with open(pred_file) as f:
         while True:
             # sp = f.readline()
             # if not sp:
@@ -343,6 +354,7 @@ def neither_fixed():
             gold_end = int(gold[1])
             start_index = int(a_idx)
             end_index = int(b_idx)
+            lengths.append(end_index - start_index)
 
             x = range(start_index,end_index + 1)
             y = range(gold_start,gold_end + 1)
@@ -370,6 +382,9 @@ def neither_fixed():
 
     print "neither_fixed:"
     print start_exact_match, end_exact_match, p, r, f1
+    print "mean: "
+    print sum(lengths)/len(lengths)
+
 
 
     print "########################################################"    
@@ -377,9 +392,9 @@ def neither_fixed():
 def max_fixed():
     correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
     start_num_exact_correct, end_num_exact_correct = 0, 0
-    gold_indices = open("indices_dev_bills_5_250.txt", 'r')
-
-    with open('preds_pointer100.txt') as f:
+    gold_indices = open(gold_indices_file, 'r')
+    lengths = []
+    with open(pred_file) as f:
         while True:
             # sp = f.readline()
             # if not sp:
@@ -410,6 +425,8 @@ def max_fixed():
             while b_idx <= a_idx:
                 b_idx = np.argmax(b)
                 b[b_idx] = 0
+
+            lengths.append(b_idx - a_idx)
 
             gold = gold_indices.readline()
             gold = gold.split()
@@ -445,13 +462,15 @@ def max_fixed():
 
     print "max_fixed:"
     print start_exact_match, end_exact_match, p, r, f1
+    print "mean: "
+    print sum(lengths)/len(lengths)
+
 
 
     print "########################################################" 
 
-evaluate()
+# evaluate()
 localminima()
-localminimaworestriction()
 neither_fixed()
 max_fixed()
 

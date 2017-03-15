@@ -31,11 +31,11 @@ train = True
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 100
-        self.num_epochs = 15
+        self.glove_dim = 50
+        self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.0005
+        self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.summary_op = None
@@ -199,7 +199,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.100d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -321,7 +321,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
 
         grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
