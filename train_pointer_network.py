@@ -31,23 +31,23 @@ train = True
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 100
-        self.num_epochs = 15
+        self.glove_dim = 50
+        self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.0005
+        self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.summary_op = None
         self.mask_placeholder = None
         self.hidden_size = 10
         self.predictions = []
-        self.batch_size = 10
+        self.batch_size = 5
         self.model_output = os.getcwd() + "model.weights"
         self.train_op = None
         self.loss = 0
         self.writer = None
-        self.dropout = 0.5
+        self.dropout = 0.25
 
         self.start_index_labels_placeholder = None
         self.end_index_labels_placeholder = None
@@ -209,7 +209,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.100d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -293,18 +293,18 @@ class SequencePredictor():
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
-                p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
-                # p_start = tf.nn.dropout(p_start,self.dropout)
+                p_start_pre_dropout = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
+                p_start = tf.nn.dropout(p_start_pre_dropout,self.dropout)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
-                #p_end = tf.add(tf.matmul(W3, p_start), p_end)
+                p_end = tf.add(tf.matmul(W3, p_start_pre_dropout), p_end)
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
-                # p_end = tf.nn.dropout(p_end, self.dropout)
+                p_end = tf.nn.dropout(p_end, self.dropout)
                 
 
                 p_start = tf.squeeze(p_start)
@@ -526,6 +526,8 @@ class SequencePredictor():
         best_score = 0.
         epoch_scores = []
         losses = []
+        file_name = train_name + "/" + "losses_scores_" + str(time.time()) + ".txt"
+        f = open(file_name, "w")
         for epoch in range(self.num_epochs):
             tf.get_variable_scope().reuse_variables()
             print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
@@ -537,18 +539,14 @@ class SequencePredictor():
                     saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
             losses.append(loss)
+            f.write(str(loss) + "\n")
+            f.write(str(score) + "\n")
+            f.write("\n")
             print("")
         print "losses"
         print losses
         print "epoch_scores"
         print epoch_scores
-        file_name = train_name + "/" + "losses_scores_" + str(time.time()) + ".txt"
-        with open(file_name, "w") as f:
-            for loss in losses:
-                f.write(str(loss) + "\n")
-            f.write("\n")
-            for score in epoch_scores:
-                f.write(str(score) + "\n")
         f.close()
 
     def initialize_model(self):
