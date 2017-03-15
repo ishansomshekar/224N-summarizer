@@ -31,8 +31,8 @@ train = True
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 100
-        self.num_epochs = 15
+        self.glove_dim = 50
+        self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.0005
@@ -40,7 +40,7 @@ class SequencePredictor():
         self.summary_input = None
         self.summary_op = None
         self.mask_placeholder = None
-        self.hidden_size = 10
+        self.hidden_size = 100
         self.predictions = []
         self.batch_size = 10
         self.model_output = os.getcwd() + "model.weights"
@@ -209,7 +209,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.100d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
