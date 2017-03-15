@@ -31,7 +31,7 @@ class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
         self.glove_dim = 100
-        self.num_epochs = 15
+        self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
         self.lr = 0.005
@@ -266,8 +266,11 @@ class SequencePredictor():
         return preds_start, preds_end
 
     def add_loss_op(self, preds):
-        loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
-        loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+        # loss_1 = tf.nn.softmax_cross_entropy_with_logits(preds[0], self.start_index_labels_placeholder)
+        # loss_2 = tf.nn.softmax_cross_entropy_with_logits(preds[1], self.end_index_labels_placeholder)
+
+        loss_1 = tf.nn.l2_loss(preds[0] - self.start_index_labels_placeholder)
+        loss_2 = tf.nn.l2_loss(preds[1] - self.end_index_labels_placeholder)        
         loss = loss_1 + loss_2
         self.loss = tf.reduce_mean(loss)   
         return self.loss
