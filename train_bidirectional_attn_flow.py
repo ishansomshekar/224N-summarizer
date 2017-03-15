@@ -40,6 +40,8 @@ class SequencePredictor():
         self.summary_input = None
         self.summary_op = None
         self.mask_placeholder = None
+        self.dropout_placeholder = None
+
         self.hidden_size = 100
         self.predictions = []
         self.batch_size = 5
@@ -47,6 +49,7 @@ class SequencePredictor():
         self.train_op = None
         self.loss = 0
         self.writer = None
+        self.dropout = .25
 
         self.start_index_labels_placeholder = None
         self.end_index_labels_placeholder = None
@@ -174,9 +177,10 @@ class SequencePredictor():
             padded_masks = []
             #padded_keywords = []
 
-    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch = None, start_labels_batch = None, end_labels_batch = None):
+    def create_feed_dict(self, inputs_batch, masks_batch, sequences, keywords_batch = None, start_labels_batch = None, end_labels_batch = None, dropout = 1):
         feed_dict = {
-            self.inputs_placeholder : inputs_batch
+            self.inputs_placeholder : inputs_batch,
+            self.dropout_placeholder : dropout
             }
         if masks_batch is not None:
             feed_dict[self.mask_placeholder] = masks_batch
@@ -197,6 +201,7 @@ class SequencePredictor():
         self.end_index_labels_placeholder = tf.placeholder(tf.float64, shape=(None,self.bill_length))
         self.sequences_placeholder = tf.placeholder(tf.int32, shape=(self.batch_size))
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
+        self.dropout_placeholder = tf.placeholder(tf.float64, name = "Dropout")
 
     def return_embeddings(self):
         data = np.load('trimmed_glove.6B.50d.npz')
@@ -211,6 +216,7 @@ class SequencePredictor():
         #use hidden states in encoder to make a predictions
         forward_hidden_states = []
         # initial_state = tf.nn.rnn_cell.RNNCell.zero_state(self.batch_size, dtype=tf.float64)
+        dropout_rate = self.dropout_placeholder
 
         with tf.variable_scope("encoder"):
             enc_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size)
@@ -269,8 +275,10 @@ class SequencePredictor():
 
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
+                y_start = tf.nn.dropout(y_start,dropout_rate)
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
+
                 p_start = tf.squeeze(p_start)
                 preds_start.append(p_start)
                 tf.get_variable_scope().reuse_variables() 
@@ -299,8 +307,10 @@ class SequencePredictor():
 
                 x_end = tf.matmul(W1_end, all_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
+                y_end = tf.nn.dropout(y_end, dropout_rate)
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
+                #p_end = tf.nn.dropout(p_end,dropout_rate)
                 p_end = tf.squeeze(p_end)
                 preds_end.append(p_end)
 
@@ -460,14 +470,14 @@ class SequencePredictor():
         return (start_exact_match, end_exact_match), (p, r, f1)
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_index_labels)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_index_labels, dropout = self.dropout)
         predictions = sess.run(self.predictions, feed_dict=feed)
         # print predictions
         return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
         #print start_labels_batch
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_labels_batch)
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_labels_batch, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_labels_batch, dropout = self.dropout)
         ##### THIS IS SO CONFUSING ######
         _, loss= sess.run([self.train_op, self.loss], feed_dict=feed)
         
