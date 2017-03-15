@@ -35,7 +35,7 @@ class SequencePredictor():
         self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.001
+        self.lr = 0.0005
         self.inputs_placeholder = None
         self.summary_input = None
         self.summary_op = None
@@ -300,7 +300,7 @@ class SequencePredictor():
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
-                p_end = tf.add(tf.matmul(W3, p_start), p_end)
+                #p_end = tf.add(tf.matmul(W3, p_start), p_end)
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
