@@ -11,7 +11,7 @@ with open(model_name + 'csv', 'wb') as csvfile:
     writer.writerow(["rouge_l", "rouge_1", "rouge_3", "bleu_score"])
     count = 0
 
-    with open('last_results.txt', 'r') as f:
+    with open('summaries_from_preds.txt', 'r') as f:
         while True:
             gen = f.readline()
             gold = f.readline()
