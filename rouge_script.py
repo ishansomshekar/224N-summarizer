@@ -6,7 +6,7 @@ import os.path
 
 model_name = "pointer_network_CE"
 
-with open(file_name + 'csv', 'wb') as csvfile:
+with open(model_name + 'csv', 'wb') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["rouge_l", "rouge_1", "rouge_3", "bleu_score"])
     count = 0
