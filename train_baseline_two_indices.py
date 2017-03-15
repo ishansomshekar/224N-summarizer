@@ -24,17 +24,17 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = "baseline_" + str(time.time())
+train_name = "baselineadam_" + str(time.time())
 train = True
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
 
-        self.glove_dim = 100
+        self.glove_dim = 50
         self.num_epochs = 10
         self.bill_length = 151
         self.keywords_length = 5
-        self.lr = 0.005
+        self.lr = 0.001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -210,7 +210,7 @@ class SequencePredictor():
         self.keywords_placeholder = tf.placeholder(tf.int32, shape=(None, self.keywords_length))
 
     def return_embeddings(self):
-        data = np.load('trimmed_glove.6B.100d.npz')
+        data = np.load('trimmed_glove.6B.50d.npz')
         embeddings = tf.Variable(data['glove'])
         bill_embeddings = tf.nn.embedding_lookup(embeddings, self.inputs_placeholder)
         bill_embeddings = tf.reshape(bill_embeddings, (-1, self.bill_length, self.glove_dim))
@@ -246,12 +246,12 @@ class SequencePredictor():
             for i in xrange(self.batch_size):
                 bill = complete_outputs[i, :, :] #bill is bill_length by hidden_size
                 result_start = tf.matmul(bill, U_1) + b2_1
-                result_start = tf.nn.dropout(result_start,self.dropout_rate)
+                #result_start = tf.nn.dropout(result_start,self.dropout_rate)
                 result_start = tf.nn.tanh(result_start)
                 preds_start.append(result_start)
 
                 result_end = tf.matmul(bill, U_2) + b2_2
-                result_end = tf.nn.dropout(result_end,self.dropout_rate)
+                #result_end = tf.nn.dropout(result_end,self.dropout_rate)
                 result_end = tf.nn.tanh(result_end)
                 preds_end.append(result_end)
         
@@ -276,7 +276,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
         self.train_op = optimizer.minimize(losses)
         return self.train_op    
 
@@ -443,6 +443,8 @@ class SequencePredictor():
         best_score = 0.
         epoch_scores = []
         losses = []
+        file_name = train_name + "/" + "losses_scores_" + str(time.time()) + ".txt"
+        f = open(file_name, "w")
         for epoch in range(self.num_epochs):
             tf.get_variable_scope().reuse_variables()
             print("Epoch %d out of %d" % (epoch + 1, self.num_epochs))
@@ -454,18 +456,15 @@ class SequencePredictor():
                     saver.save(sess, './data/'+ train_name+ '/weights/summarizer.weights')
             epoch_scores.append(score)
             losses.append(loss)
+            f.write(str(loss) + "\n")
+            f.write(str(score) + "\n")
+            f.write("\n")
             print("")
-        file_name = train_name + "/" + "losses_scores_" + str(time.time()) + ".txt"
         print "losses"
         print losses
         print "epoch_scores"
         print epoch_scores
-        with open(file_name, "w") as f:
-            for loss in losses:
-                f.write(str(loss) + "\n")
-            f.write("\n")
-            for score in epoch_scores:
-                f.write(str(score) + "\n")
+        f.close()
 
     def initialize_model(self):
         self.add_placeholders()
