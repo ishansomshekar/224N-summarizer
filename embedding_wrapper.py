@@ -109,7 +109,7 @@ class EmbeddingWrapper(object):
             print( "finished building vocabulary of size %d for all files" %wordcounter)
         else:
             self.vocab = pickle.load(open('vocab.dat', 'r'))
-            self.reverse_vocab = pickle.load(open('reverse_vocab.dat', 'r'))
+            self.reverse_vocab = None            
             self.num_tokens = len(self.vocab)
 
 
@@ -174,11 +174,11 @@ if __name__ == '__main__':
 
     dict_obj = pickle.load(open('vocab.dat', 'r'))
 
-    with open('reverse_vocab.dat', 'w') as f:
-        pickle.dump(embedding_wrapper.reverse_vocab, f)
-        f.close()
+    # with open('reverse_vocab.dat', 'w') as f:
+    #     pickle.dump(embedding_wrapper.reverse_vocab, f)
+    #     f.close()
 
-    dict_obj = pickle.load(open('reverse_vocab.dat', 'r'))
+    # dict_obj = pickle.load(open('reverse_vocab.dat', 'r'))
 
     # assert dict_obj['games'] == embedding_wrapper.vocab['games']
     # print(dict_obj['games'])
