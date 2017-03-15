@@ -24,7 +24,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = "pointername" + str(time.time())
+train_name = "pointeradam" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
 train = True
 
@@ -293,18 +293,18 @@ class SequencePredictor():
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
-                p_start_pre_dropout = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
-                p_start = tf.nn.dropout(p_start_pre_dropout,self.dropout)
+                p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
+                #p_start = tf.nn.dropout(p_start_pre_dropout,self.dropout)
 
                 x_end = tf.matmul(W1_end, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_end = tf.matmul(W2_end, o_t) # result is 1 , hidden_size*4
                 u_end = tf.nn.tanh(x_end + y_end) #(batch_size, hidden_size * 4)
                 p_end = tf.matmul(u_end, vt_end) #(batch_size, bill_length)
-                p_end = tf.add(tf.matmul(W3, p_start_pre_dropout), p_end)
+                p_end = tf.add(tf.matmul(W3, p_start), p_end)
                 #tf.summary.histogram('p_end', p_end)
                 # print "preds:"
                 # print p_start
-                p_end = tf.nn.dropout(p_end, self.dropout)
+                #p_end = tf.nn.dropout(p_end, self.dropout)
                 
 
                 p_start = tf.squeeze(p_start)
@@ -344,7 +344,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
 
         grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
