@@ -30,7 +30,7 @@ class EmbeddingWrapper(object):
         self.reverse_vocab = None
         self.embeddings = None
         self.glove_dir = "FILL GLOVE DIR HERE"
-        self.glove_dim = 50
+        self.glove_dim = 100
         self.num_tokens = 0
         self.file_names = []
         self.pad = 'PAD'
