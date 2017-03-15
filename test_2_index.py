@@ -473,7 +473,7 @@ def end_max_fixed():
     r = correct_preds / total_correct if correct_preds > 0 else 0
     f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
-    print "max_fixed:"
+    print "end_max_fixed:"
     print start_exact_match, end_exact_match, p, r, f1
     print "mean: "
     print sum(lengths)/len(lengths)
@@ -551,7 +551,7 @@ def max_fixed():
     r = correct_preds / total_correct if correct_preds > 0 else 0
     f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
 
-    print "max_fixed:"
+    print "start_max_fixed:"
     print start_exact_match, end_exact_match, p, r, f1
     print "mean: "
     print sum(lengths)/len(lengths)
