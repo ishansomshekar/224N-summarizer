@@ -24,7 +24,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = "pointeradam" + str(time.time())
+train_name = "21_250_" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
 train = True
 
@@ -33,7 +33,7 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 151
+        self.bill_length = 251
         self.keywords_length = 5
         self.lr = 0.0005
         self.inputs_placeholder = None
@@ -56,25 +56,25 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_4_150.txt" #"train_bills_3_context.txt"
-        self.train_summary_data_file = "summaries_train_bills_4_150.txt"
-        self.train_indices_data_file = "indices_train_bills_4_150.txt"
-        self.train_sequence_data_file = "sequences_train_bills_4_150.txt"
-        self.train_keyword_data_file = "train_bills_3_keywords.txt"
+        self.train_data_file = "bills_train_bills_5_250.txt" #"train_bills_3_context.txt"
+        self.train_summary_data_file = "summaries_train_bills_5_250.txt"
+        self.train_indices_data_file = "indices_train_bills_5_250.txt"
+        self.train_sequence_data_file = "sequences_train_bills_5_250.txt"
+        self.train_keyword_data_file = "train_bills_5_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_dev_bills_4_150.txt"
-        self.dev_summary_data_file =  "summaries_dev_bills_4_150.txt"
-        self.dev_indices_data_file = "indices_dev_bills_4_150.txt"
-        self.dev_sequence_data_file = "sequences_dev_bills_4_150.txt"
+        self.dev_data_file =  "bills_dev_bills_5_250.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_5_250.txt"
+        self.dev_indices_data_file = "indices_dev_bills_5_250.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_5_250.txt"
         self.dev_keyword_data_file = "dev_bills_3_keywords.txt"
 
-        self.test_data_file =  "bills_test_bills_4_150.txt"
-        self.test_summary_data_file =  "summaries_test_bills_4_150.txt"
-        self.test_indices_data_file = "indices_test_bills_4_150.txt"
-        self.test_sequence_data_file = "sequences_test_bills_4_150.txt"
+        self.test_data_file =  "bills_test_bills_5_250.txt"
+        self.test_summary_data_file =  "summaries_test_bills_5_250.txt"
+        self.test_indices_data_file = "indices_test_bills_5_250.txt"
+        self.test_sequence_data_file = "sequences_test_bills_5_250.txt"
         self.test_keyword_data_file = "test_bills_3_keywords.txt"
 
 
@@ -344,7 +344,7 @@ class SequencePredictor():
         return self.loss
 
     def add_optimization(self, losses):
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr)
 
         grads = [x[0] for x in optimizer.compute_gradients(losses)]
         self.train_op = optimizer.minimize(losses)
@@ -398,71 +398,67 @@ class SequencePredictor():
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
         
+        gold_summaries_file = self.dev_summary_data_file
+        bills_file = self.dev_data_file 
+        gold_summ = open(gold_summaries_file, "r")
+        bills_file = open(bills_file,"r")
+
         with open(file_name, 'a') as f:
             with open(preds_file_name, 'a') as f_preds:
                 for start_preds, end_preds in self.output(sess):
                     f_preds.write(str(start_preds) + '\n')
                     f_preds.write(str(end_preds) + '\n')
                     f_preds.write('\n')
-                    # print "start preds: "
-                    # print start_preds
-                    # print "end preds: "
-                    # print end_preds
+
+                    a = np.asarray(start_preds)
+                    b = np.asarray(end_preds)
+
+                    a = np.exp(a - np.amax(a))
+                    a = a / np.sum(a)
+                    b = np.exp(b - np.amax(b))
+                    b = b / np.sum(b)
+
+                    a_idx = len(a) - 2
+                    b_idx = len(b) - 1
+
+                    b_max = b_idx
+                    total_max = a[a_idx] * b[b_max]
+
+                    for i in xrange(len(a)-3, -1, -1):
+                        if b[i + 1] > b[b_max]:
+                            b_max = i + 1
+                        if a[i] * b[b_max] > total_max:
+                            a_idx = i
+                            b_idx = b_max
+
                     gold = gold_indices.readline()
                     gold = gold.split()
                     gold_start = int(gold[0])
                     gold_end = int(gold[1])
-
-                    np_start_preds = np.asarray(start_preds)
-                    start_maxima = argrelextrema(np_start_preds, np.greater)[0]
-                    tuples = [(x, np_start_preds[x]) for x in start_maxima]
-                    # print tuples
-                    start_maxima = sorted(tuples, key = lambda x: x[1])
-                    # print maxima
-                    if len(start_maxima) > 0:
-                        start_index = start_maxima[-1][0]
-                    else:
-                        start_index = start_preds.index(max(start_preds))
-
-                    np_end_preds = np.asarray(end_preds)
-                    end_maxima = argrelextrema(np_end_preds, np.greater)[0]
-                    # print "###########"
-                    # print end_maxima
-                    tuples = [(x, np_end_preds[x]) for x in end_maxima]
-                    # print tuples
-                    end_maxima = sorted(tuples, key = lambda x: x[1])
-                    # print maxima
-                    if len(end_maxima) > 0:
-                        end_index = end_maxima[-1][0]
-                    else:
-                        end_index = end_preds.index(max(end_preds))
-
-                    print
-                    print "gold start ", (gold_start)
-                    print "our start " , (start_index)
-                    print "gold end ", (gold_end)
-                    print "our end ", (end_index)
-
-                    text = gold_standard_summaries.readline()
-                    summary = ' '.join(text.split()[start_index:end_index])
-                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
-                    summary = normalize_answer(summary)
-                    gold_summary = normalize_answer(gold_summary)
-
-                    f.write('\n')
-                    f.write(summary + ' \n')
-                    f.write(gold_summary + ' \n')
+                    start_index = int(a_idx)
+                    end_index = int(b_idx)
 
                     x = range(start_index,end_index + 1)
                     y = range(gold_start,gold_end + 1)
                     xs = set(x)
                     overlap = xs.intersection(y)
                     overlap = len(overlap)
-
                     if start_index == gold_start:
                         start_num_exact_correct += 1
                     if end_index == gold_end:
                         end_num_exact_correct += 1
+
+                    gold_summary_text = gold_summ.readline()[:-1]
+                    bill_text = bills_file.readline()
+                    bill_text_list = bill_text.split()
+                    our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
+
+                    gold_summary_text = normalize_answer(gold_summary_text)
+                    our_summary = normalize_answer(our_summary)
+
+                    f.write(our_summary + ' \n')
+                    f.write(gold_summary_text + ' \n')
+                    f.write('\n')
                     
                     number_indices += 1
                     correct_preds += overlap
