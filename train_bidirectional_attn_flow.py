@@ -42,6 +42,7 @@ class SequencePredictor():
         self.mask_placeholder = None
         self.dropout_placeholder = None
 
+
         self.hidden_size = 100
         self.predictions = []
         self.batch_size = 5
