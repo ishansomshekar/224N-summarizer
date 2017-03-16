@@ -33,14 +33,15 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 251
+        self.bill_length = 301
         self.keywords_length = 5
-        self.lr = 0.0005
+        self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
         self.summary_op = None
         self.mask_placeholder = None
         self.dropout_placeholder = None
+
 
         self.hidden_size = 100
         self.predictions = []
@@ -58,19 +59,19 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_5_250.txt" #"train_bills_3_context.txt"
-        self.train_summary_data_file = "summaries_train_bills_5_250.txt"
-        self.train_indices_data_file = "indices_train_bills_5_250.txt"
-        self.train_sequence_data_file = "sequences_train_bills_5_250.txt"
+        self.train_data_file = "bills_train_bills_6_300.txt" #"train_bills_3_context.txt"
+        self.train_summary_data_file = "summaries_train_bills_6_300.txt"
+        self.train_indices_data_file = "indices_train_bills_6_300.txt"
+        self.train_sequence_data_file = "sequences_train_bills_6_300.txt"
         #self.train_keyword_data_file = "train_bills_4_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_dev_bills_5_250.txt"
-        self.dev_summary_data_file =  "summaries_dev_bills_5_250.txt"
-        self.dev_indices_data_file = "indices_dev_bills_5_250.txt"
-        self.dev_sequence_data_file = "sequences_dev_bills_5_250.txt"
+        self.dev_data_file =  "bills_dev_bills_6_300.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_6_300.txt"
+        self.dev_indices_data_file = "indices_dev_bills_6_300.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_6_300.txt"
         #self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
@@ -275,7 +276,8 @@ class SequencePredictor():
 
                 x_start = tf.matmul(W1_start, complete_hidden_states[:, time_step, :]) # result is 1 , hidden_size*4
                 y_start = tf.matmul(W2_start, o_t) # result is 1 , hidden_size*4
-                #y_start = tf.nn.dropout(y_start,dropout_rate)
+                # y_start = tf.nn.dropout(y_start,dropout_rate)
+
                 u_start = tf.nn.tanh(x_start + y_start) #(batch_size, hidden_size * 4)
                 p_start = tf.matmul(u_start, vt_start) #(batch_size, bill_length)
 
@@ -287,13 +289,13 @@ class SequencePredictor():
         preds_start = tf.pack(preds_start)
         preds_start = tf.transpose(preds_start,[1,0])    
         #all hidden_states is (bill_length, 2, batch_size, hidden_size * 4)\
-        print len(all_hidden_states)
-        print all_hidden_states
+        # print len(all_hidden_states)
+        # print all_hidden_states
         all_hidden_states = [tf.add(hidden_state[0], hidden_state[1]) for hidden_state in all_hidden_states]
-        print len(all_hidden_states)
-        print all_hidden_states
+        # print len(all_hidden_states)
+        # print all_hidden_states
         all_hidden_states = tf.pack(all_hidden_states)
-        print all_hidden_states
+        # print all_hidden_states
         all_hidden_states = tf.transpose(all_hidden_states, [1,0,2]) #now it is (batch_size, bill_length, hidden_size * 8)
         with tf.variable_scope("decoder_end"):
             end_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
