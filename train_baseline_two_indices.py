@@ -317,71 +317,67 @@ class SequencePredictor():
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
         
+        gold_summaries_file = self.dev_summary_data_file
+        bills_file = self.dev_data_file 
+        gold_summ = open(gold_summaries_file, "r")
+        bills_file = open(bills_file,"r")
+
         with open(file_name, 'a') as f:
             with open(preds_file_name, 'a') as f_preds:
                 for start_preds, end_preds in self.output(sess):
                     f_preds.write(str(start_preds) + '\n')
                     f_preds.write(str(end_preds) + '\n')
                     f_preds.write('\n')
-                    # print "start preds: "
-                    # print start_preds
-                    # print "end preds: "
-                    # print end_preds
+
+                    a = np.asarray(start_preds)
+                    b = np.asarray(end_preds)
+
+                    a = np.exp(a - np.amax(a))
+                    a = a / np.sum(a)
+                    b = np.exp(b - np.amax(b))
+                    b = b / np.sum(b)
+
+                    a_idx = len(a) - 2
+                    b_idx = len(b) - 1
+
+                    b_max = b_idx
+                    total_max = a[a_idx] * b[b_max]
+
+                    for i in xrange(len(a)-3, -1, -1):
+                        if b[i + 1] > b[b_max]:
+                            b_max = i + 1
+                        if a[i] * b[b_max] > total_max:
+                            a_idx = i
+                            b_idx = b_max
+
                     gold = gold_indices.readline()
                     gold = gold.split()
                     gold_start = int(gold[0])
                     gold_end = int(gold[1])
-
-                    np_start_preds = np.asarray(start_preds)
-                    start_maxima = argrelextrema(np_start_preds, np.greater)[0]
-                    tuples = [(x, np_start_preds[x]) for x in start_maxima]
-                    # print tuples
-                    start_maxima = sorted(tuples, key = lambda x: x[1])
-                    # print maxima
-                    if len(start_maxima) > 0:
-                        start_index = start_maxima[-1][0]
-                    else:
-                        start_index = start_preds.index(max(start_preds))
-
-                    np_end_preds = np.asarray(end_preds)
-                    end_maxima = argrelextrema(np_end_preds, np.greater)[0]
-                    # print "###########"
-                    # print end_maxima
-                    tuples = [(x, np_end_preds[x]) for x in end_maxima]
-                    # print tuples
-                    end_maxima = sorted(tuples, key = lambda x: x[1])
-                    # print maxima
-                    if len(end_maxima) > 0:
-                        end_index = end_maxima[-1][0]
-                    else:
-                        end_index = end_preds.index(max(end_preds))
-
-                    print
-                    print "gold start ", (gold_start)
-                    print "our start " , (start_index)
-                    print "gold end ", (gold_end)
-                    print "our end ", (end_index)
-
-                    text = gold_standard_summaries.readline()
-                    summary = ' '.join(text.split()[start_index:end_index])
-                    gold_summary = ' '.join(text.split()[gold_start:gold_end])
-                    summary = normalize_answer(summary)
-                    gold_summary = normalize_answer(gold_summary)
-
-                    f.write('\n')
-                    f.write(summary + ' \n')
-                    f.write(gold_summary + ' \n')
+                    start_index = int(a_idx)
+                    end_index = int(b_idx)
 
                     x = range(start_index,end_index + 1)
                     y = range(gold_start,gold_end + 1)
                     xs = set(x)
                     overlap = xs.intersection(y)
                     overlap = len(overlap)
-
                     if start_index == gold_start:
                         start_num_exact_correct += 1
                     if end_index == gold_end:
                         end_num_exact_correct += 1
+
+                    gold_summary_text = gold_summ.readline()[:-1]
+                    bill_text = bills_file.readline()
+                    bill_text_list = bill_text.split()
+                    our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
+
+                    gold_summary_text = normalize_answer(gold_summary_text)
+                    our_summary = normalize_answer(our_summary)
+
+                    f.write(our_summary + ' \n')
+                    f.write(gold_summary_text + ' \n')
+                    f.write('\n')
                     
                     number_indices += 1
                     correct_preds += overlap
@@ -408,7 +404,12 @@ class SequencePredictor():
             f_preds.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
-
+    
+    def predict_on_batch(self, sess, inputs_batch, start_index_labels=None, end_index_labels=None, mask_batch=None, sequence_batch=None, keywords_batch=None):
+        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
+        predictions = sess.run(self.predictions, feed_dict=feed)
+        # print predictions
+        return predictions
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
