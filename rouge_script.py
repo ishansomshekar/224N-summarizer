@@ -3,17 +3,19 @@ import glob
 import csv
 import nltk
 import os.path
+import sys
 
 model_name = "pointer_network_CE"
 
 
 def gen_rouge(file_name):
-    with open(model_name + 'csv', 'wb') as csvfile:
+    print file_name
+    with open('ROUGE_scores_' + file_name + '.csv', 'wb') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["rouge_l", "bleu_score"])
         count = 0
 
-        with open(file_name, 'r') as f:
+        with open(file_name + '.txt', 'r') as f:
             while True:
                 gen = f.readline()
                 gold = f.readline()
@@ -32,9 +34,11 @@ def gen_rouge(file_name):
                     print count
 
 
-
-def main():
+def main(argv):
+    gen_rouge(argv[0])
 
 
 if __name__ == '__main__':
-    file_arg = sys.argv[]
+    main(sys.argv[1:])
+
+
