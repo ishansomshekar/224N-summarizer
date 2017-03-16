@@ -24,7 +24,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = "_" + str(time.time())
+train_name = "22_250" + str(time.time())
 train = True
 
 class SequencePredictor():
@@ -316,7 +316,7 @@ class SequencePredictor():
         preds_file_name = train_name + "/" + "preds_" + str(time.time()) + ".txt"
         if is_test:
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
-
+        
         with open(file_name, 'a') as f:
             with open(preds_file_name, 'a') as f_preds:
                 for start_preds, end_preds in self.output(sess):
@@ -408,6 +408,7 @@ class SequencePredictor():
             f_preds.close()
         
         return (start_exact_match, end_exact_match), (p, r, f1)
+
     
     def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
