@@ -289,13 +289,13 @@ class SequencePredictor():
         preds_start = tf.pack(preds_start)
         preds_start = tf.transpose(preds_start,[1,0])    
         #all hidden_states is (bill_length, 2, batch_size, hidden_size * 4)\
-        print len(all_hidden_states)
-        print all_hidden_states
+        # print len(all_hidden_states)
+        # print all_hidden_states
         all_hidden_states = [tf.add(hidden_state[0], hidden_state[1]) for hidden_state in all_hidden_states]
-        print len(all_hidden_states)
-        print all_hidden_states
+        # print len(all_hidden_states)
+        # print all_hidden_states
         all_hidden_states = tf.pack(all_hidden_states)
-        print all_hidden_states
+        # print all_hidden_states
         all_hidden_states = tf.transpose(all_hidden_states, [1,0,2]) #now it is (batch_size, bill_length, hidden_size * 8)
         with tf.variable_scope("decoder_end"):
             end_cell = tf.nn.rnn_cell.LSTMCell(self.hidden_size*4)
