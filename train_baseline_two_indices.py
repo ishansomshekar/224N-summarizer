@@ -24,7 +24,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
-train_name = "22_250" + str(time.time())
+train_name = "" + str(time.time())
 train = True
 
 class SequencePredictor():
@@ -32,9 +32,9 @@ class SequencePredictor():
 
         self.glove_dim = 50
         self.num_epochs = 10
-        self.bill_length = 251
+        self.bill_length = 301
         self.keywords_length = 5
-        self.lr = 0.005
+        self.lr = 0.0001
         self.inputs_placeholder = None
         self.summary_input = None
         self.mask_placeholder = None
@@ -53,19 +53,19 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_train_bills_5_250.txt"
-        self.train_summary_data_file = "summaries_train_bills_5_250.txt"
-        self.train_indices_data_file = "indices_train_bills_5_250.txt"
-        self.train_sequence_data_file = "sequences_train_bills_5_250.txt"
+        self.train_data_file = "bills_train_bills_6_300.txt"
+        self.train_summary_data_file = "summaries_train_bills_6_300.txt"
+        self.train_indices_data_file = "indices_train_bills_6_300.txt"
+        self.train_sequence_data_file = "sequences_train_bills_6_300.txt"
         self.train_keyword_data_file = "train_bills_4_keywords.txt"
         file_open = open(self.train_data_file, 'r')
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_dev_bills_5_250.txt"
-        self.dev_summary_data_file =  "summaries_dev_bills_5_250.txt"
-        self.dev_indices_data_file = "indices_dev_bills_5_250.txt"
-        self.dev_sequence_data_file = "sequences_dev_bills_5_250.txt"
+        self.dev_data_file =  "bills_dev_bills_6_300.txt"
+        self.dev_summary_data_file =  "summaries_dev_bills_6_300.txt"
+        self.dev_indices_data_file = "indices_dev_bills_6_300.txt"
+        self.dev_sequence_data_file = "sequences_dev_bills_6_300.txt"
         self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
         file_open = open(self.dev_data_file, 'r')
