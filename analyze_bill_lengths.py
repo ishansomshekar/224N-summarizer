@@ -60,12 +60,12 @@ def main():
 
     fig, ax = plt.subplots(figsize=(14,5))
     make_hist(ax, [1,1,1,0,0,0], extra_y=1, text_offset=0.1)
-    make_hist(ax, bill_lengths, bins=list(range(0,400,50))+ [np.inf], extra_y=6, title = "Bill Length Frequency Diagram", xlabel = "Length", yoffset = 1500)
+    make_hist(ax, bill_lengths, bins=list(range(0,400,50))+ [np.inf], extra_y=6, title = "Bill Lengths Frequency Diagram", xlabel = "Length", yoffset = 1500)
     plt.show()
 
     fig, ax = plt.subplots(figsize=(14,5))
     make_hist(ax, [1,1,1,0,0,0], extra_y=1, text_offset=0.1)
-    make_hist(ax, summary_lengths, bins=list(range(0,300,50))+ [np.inf], extra_y=6, title = "Bill Length Frequency Diagram", xlabel = "Length", yoffset = 1500)
+    make_hist(ax, summary_lengths, bins=list(range(0,300,50))+ [np.inf], extra_y=6, title = "Summary Length Frequency Diagram", xlabel = "Length", yoffset = 1500)
     plt.show()
 
 
