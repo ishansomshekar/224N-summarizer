@@ -53,7 +53,7 @@ class SequencePredictor():
         self.vocab_size = embedding_wrapper.num_tokens
         self.embedding_init = None
 
-        self.train_data_file = "bills_data_100_test.txt"
+        self.train_data_file = "bills_train_bills_8_400.txt"
         self.train_summary_data_file = "summaries_train_bills_8_400.txt"
         self.train_indices_data_file = "indices_train_bills_8_400.txt"
         self.train_sequence_data_file = "sequences_train_bills_8_400.txt"
@@ -62,7 +62,7 @@ class SequencePredictor():
         self.train_len = len(file_open.read().split("\n"))
         file_open.close()
 
-        self.dev_data_file =  "bills_data_100_test.txt"
+        self.dev_data_file =  "bills_dev_bills_8_400.txt"
         self.dev_summary_data_file =  "summaries_dev_bills_8_400.txt"
         self.dev_indices_data_file = "indices_dev_bills_8_400.txt"
         self.dev_sequence_data_file = "sequences_dev_bills_8_400.txt"
