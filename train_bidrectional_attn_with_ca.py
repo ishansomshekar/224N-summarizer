@@ -400,7 +400,7 @@ class SequencePredictor():
             file_name = 'TEST_RESULTS_' + train_name + "/" + str(time.time()) + ".txt"
         
         gold_summaries_file = self.dev_summary_data_file
-        bills_file = self.dev_data_file 
+        bills_file = 'bills_ca.txt' 
         gold_summ = open(gold_summaries_file, "r")
         bills_file = open(bills_file,"r")
 
@@ -454,11 +454,11 @@ class SequencePredictor():
                     bill_text_list = bill_text.split()
                     our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
 
-                    gold_summary_text = normalize_answer(gold_summary_text)
-                    our_summary = normalize_answer(our_summary)
+                    # gold_summary_text = normalize_answer(gold_summary_text)
+                    # our_summary = normalize_answer(our_summary)
 
                     f.write(our_summary + ' \n')
-                    f.write(gold_summary_text + ' \n')
+                    f.write(bill_text + ' \n')
                     f.write('\n')
                     
                     number_indices += 1
@@ -656,6 +656,9 @@ def build_model(embedding_wrapper):
                             f.write(bill_text + ' \n')
                             f.write('\n')
                             
+                            print start_index
+                            print end_index
+                            print
                             number_indices += 1
                             correct_preds += overlap
                             total_preds += len(x)
