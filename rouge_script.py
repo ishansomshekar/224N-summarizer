@@ -1,7 +1,7 @@
 import rougescore as rs
 import glob
 import csv
-import nltk
+
 import os.path
 import sys
 
@@ -19,6 +19,7 @@ def gen_rouge(file_name):
             while True:
                 gen = f.readline()
                 gold = f.readline()
+		f.readline()
                 if not gold: 
                     break
 

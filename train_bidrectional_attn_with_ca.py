@@ -360,9 +360,9 @@ class SequencePredictor():
     def test_output(self, sess):
         start_preds = []
         end_preds = []
-        prog = Progbar(target=1 + int(self.test_len/ self.batch_size))
+        prog = Progbar(target=1 + int(600/ self.batch_size))
         count = 0
-        for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
+        for inputs in self.batch_gen_test(self.embedding_wrapper, 'bills_ca.txt'):
             start_, end_ = self.predict_on_batch(sess, inputs)
             prog.update(count + 1, [])
             count += 1
@@ -581,14 +581,14 @@ def build_model(embedding_wrapper):
             else:
                 print "Testing..."
                 print 'Restoring the best model weights found on the dev set'
-                saver.restore(session, './29_1489776013.49/weights/summarizer.weights')
+                saver.restore(session, 'data/29_1489776013.49/weights/summarizer.weights')
                 correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
                 start_num_exact_correct, end_num_exact_correct = 0, 0
                 
                 #gold_standard_summaries = open(model.test_summary_data_file, 'r')
                 gold_indices = open(model.test_indices_data_file, 'r')
-                file_name = "TEST_RESULTS_" + train_name + str(time.time()) + ".txt"
-                preds_file_name = "TEST_PREDS_" + train_name + "preds_" + str(time.time()) + ".txt"
+                file_name = "TEST_RESULTS_CA_" + train_name + str(time.time()) + ".txt"
+                preds_file_name = "TEST_PREDS_CA_" + train_name + "preds_" + str(time.time()) + ".txt"
                 
                 gold_summaries_file = model.test_summary_data_file
                 bills_file = model.test_data_file 
@@ -649,11 +649,11 @@ def build_model(embedding_wrapper):
                             bill_text_list = bill_text.split()
                             our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
 
-                            gold_summary_text = normalize_answer(gold_summary_text)
-                            our_summary = normalize_answer(our_summary)
+                            # gold_summary_text = normalize_answer(gold_summary_text)
+                            # our_summary = normalize_answer(our_summary)
 
                             f.write(our_summary + ' \n')
-                            f.write(gold_summary_text + ' \n')
+                            f.write(bill_text + ' \n')
                             f.write('\n')
                             
                             number_indices += 1
