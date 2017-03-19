@@ -14,7 +14,7 @@ def gen_rouge(file_name):
         writer = csv.writer(csvfile)
         writer.writerow(["rouge_l"])
         count = 0
-
+        rouge_scores = []
         with open(file_name + '.txt', 'r') as f:
             while True:
                 gen = f.readline()
@@ -29,9 +29,13 @@ def gen_rouge(file_name):
                     # rouge_3_score = rs.rouge_n(gen, [gold], 3, 0.5)
                     # bleu_score = nltk.translate.bleu_score.corpus_bleu([gen], [gold]) 
                 writer.writerow([rouge_l_score])
+                rouge_scores.append(rouge_l_score)
                 count += 1
                 if count % 1000 == 0:
                     print count
+            avg_r = float(sum(rouge_scores))/len(rouge_scores)
+            print avg_r
+            writer.writerow([avg_r])                    
 
 
 def main(argv):
