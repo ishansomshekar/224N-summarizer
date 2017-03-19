@@ -26,7 +26,7 @@ t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "29_" + str(time.time())
 logs_path = os.getcwd() + '/tf_log/'
-train = True
+train = False
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -74,8 +74,19 @@ class SequencePredictor():
         self.dev_sequence_data_file = "sequences_dev_bills_8_400.txt"
         #self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
+        self.test_data_file =  "bills_test_bills_8_400.txt"
+        self.test_summary_data_file =  "summaries_test_bills_8_400.txt"
+        self.test_indices_data_file = "indices_test_bills_8_400.txt"
+        self.test_sequence_data_file = "sequences_test_bills_8_400.txt"
+        self.test_keyword_data_file = "test_bills_4_keywords.txt"
+
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
+        file_open.close()
+
+
+        file_open = open(self.test_data_file, 'r')
+        self.test_len = len(file_open.read().split("\n"))
         file_open.close()
 
     def batch_gen_test(self, embedding_lookup, bill_data_path):
@@ -349,12 +360,16 @@ class SequencePredictor():
     def test_output(self, sess):
         start_preds = []
         end_preds = []
+        prog = Progbar(target=1 + int(self.test_len/ self.batch_size))
+        count = 0
         for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
             start_, end_ = self.predict_on_batch(sess, inputs)
-            print "start:"
-            print start_
-            print "end: "
-            print end_
+            prog.update(count + 1, [])
+            count += 1
+            # print "start:"
+            # print start_
+            # print "end: "
+            # print end_
             start_preds += start_.tolist()
             end_preds += end_.tolist()
         return zip(start_preds, end_preds)
@@ -566,13 +581,103 @@ def build_model(embedding_wrapper):
             else:
                 print "Testing..."
                 print 'Restoring the best model weights found on the dev set'
-                saver.restore(session, './data/'+ train_name + '/weights/summarizer.weights')
+                saver.restore(session, './29_1489776013.49/weights/summarizer.weights')
+                correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+                start_num_exact_correct, end_num_exact_correct = 0, 0
+                
+                #gold_standard_summaries = open(model.test_summary_data_file, 'r')
+                gold_indices = open(model.test_indices_data_file, 'r')
+                file_name = "TEST_RESULTS_" + train_name + str(time.time()) + ".txt"
+                preds_file_name = "TEST_PREDS_" + train_name + "preds_" + str(time.time()) + ".txt"
+                
+                gold_summaries_file = model.test_summary_data_file
+                bills_file = model.test_data_file 
+                gold_summ = open(gold_summaries_file, "r")
+                bills_file = open(bills_file,"r")
+                counter = 0
+                with open(file_name, 'w') as f:
+                    with open(preds_file_name, 'a') as f_preds:
+                        for start_preds, end_preds in model.test_output(session):
+                            # print "here"
+                            f_preds.write(str(start_preds) + '\n')
+                            f_preds.write(str(end_preds) + '\n')
+                            f_preds.write('\n')
 
-                # for start_preds, end_preds in model.test_output(session):
-                #     print "start preds: "
-                #     print start_preds
-                #     print "end preds: "
-                #     print end_preds
+                            a = np.asarray(start_preds)
+                            b = np.asarray(end_preds)
+
+                            a = np.exp(a - np.amax(a))
+                            a = a / np.sum(a)
+                            b = np.exp(b - np.amax(b))
+                            b = b / np.sum(b)
+
+                            start_maxima = argrelextrema(a, np.greater)[0]
+                            tuples = [(x, a[x]) for x in start_maxima]
+                            start_maxima = sorted(tuples, key = lambda x: x[1])
+                            if len(start_maxima) > 0:
+                                a_idx = start_maxima[-1][0]
+                            else:
+                                a_idx = np.argmax(a)
+
+                            end_maxima = argrelextrema(b, np.greater)[0]
+                            tuples = [(x, b[x]) for x in end_maxima if x > a_idx]
+                            end_maxima = sorted(tuples, key = lambda x: x[1])
+                            if len(end_maxima) > 0:
+                                b_idx = end_maxima[-1][0]
+                            else:
+                                b_idx = np.argmax(b)
+
+                            gold = gold_indices.readline()
+                            gold = gold.split()
+                            gold_start = int(gold[0])
+                            gold_end = int(gold[1])
+                            start_index = int(a_idx)
+                            end_index = int(b_idx)
+
+                            x = range(start_index,end_index + 1)
+                            y = range(gold_start,gold_end + 1)
+                            xs = set(x)
+                            overlap = xs.intersection(y)
+                            overlap = len(overlap)
+                            if start_index == gold_start:
+                                start_num_exact_correct += 1
+                            if end_index == gold_end:
+                                end_num_exact_correct += 1
+
+                            gold_summary_text = gold_summ.readline()[:-1]
+                            bill_text = bills_file.readline()
+                            bill_text_list = bill_text.split()
+                            our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
+
+                            gold_summary_text = normalize_answer(gold_summary_text)
+                            our_summary = normalize_answer(our_summary)
+
+                            f.write(our_summary + ' \n')
+                            f.write(gold_summary_text + ' \n')
+                            f.write('\n')
+                            
+                            number_indices += 1
+                            correct_preds += overlap
+                            total_preds += len(x)
+                            total_correct += len(y)
+
+                            counter += 1
+                            if counter % 1000 == 0:
+                                print counter
+
+                    start_exact_match = start_num_exact_correct/number_indices
+                    end_exact_match = end_num_exact_correct/number_indices
+                    p = correct_preds / total_preds if correct_preds > 0 else 0
+                    r = correct_preds / total_correct if correct_preds > 0 else 0
+                    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+                    gold_indices.close()
+
+                    f.write('Model results: \n')
+                    print start_exact_match, end_exact_match, p, r, f1
+                    f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.3f/%.3f/%.3f/%.3f/%.3f \n" % (start_exact_match, end_exact_match, p, r, f1))
+                    f.close()
+                    f_preds.close()
 
 def main():
     mydir = os.path.join(os.getcwd(), train_name)
