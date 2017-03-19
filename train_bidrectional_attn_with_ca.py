@@ -487,7 +487,7 @@ class SequencePredictor():
         
         return (start_exact_match, end_exact_match), (p, r, f1)
     
-    def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
+    def predict_on_batch(self, sess, inputs_batch, start_index_labels=None, end_index_labels=None, mask_batch=None, sequence_batch=None, keywords_batch=None):
         feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, end_labels_batch = end_index_labels, dropout = self.dropout)
         predictions = sess.run(self.predictions, feed_dict=feed)
         # print predictions
