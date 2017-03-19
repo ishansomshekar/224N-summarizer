@@ -25,7 +25,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 t = time.localtime()
 timeString  = time.strftime("%Y%m%d%H%M%S", t)
 train_name = "32_400_" + str(time.time())
-train = True
+train = False
 
 class SequencePredictor():
     def __init__(self, embedding_wrapper):
@@ -68,8 +68,19 @@ class SequencePredictor():
         self.dev_sequence_data_file = "sequences_dev_bills_8_400.txt"
         self.dev_keyword_data_file = "dev_bills_4_keywords.txt"
 
+        self.test_data_file =  "bills_test_bills_8_400.txt"
+        self.test_summary_data_file =  "summaries_test_bills_8_400.txt"
+        self.test_indices_data_file = "indices_test_bills_8_400.txt"
+        self.test_sequence_data_file = "sequences_test_bills_8_400.txt"
+        self.test_keyword_data_file = "test_bills_4_keywords.txt"
+
         file_open = open(self.dev_data_file, 'r')
         self.dev_len = len(file_open.read().split("\n"))
+        file_open.close()
+
+
+        file_open = open(self.test_data_file, 'r')
+        self.test_len = len(file_open.read().split("\n"))
         file_open.close()
 
     def batch_gen_test(self, embedding_lookup, bill_data_path):
@@ -283,12 +294,16 @@ class SequencePredictor():
     def test_output(self, sess):
         start_preds = []
         end_preds = []
+        prog = Progbar(target=1 + int(self.test_len/ self.batch_size))
+        count = 0
         for inputs in self.batch_gen_test(self.embedding_wrapper, self.test_data_file):
             start_, end_ = self.predict_on_batch(sess, inputs)
-            print "start:"
-            print start_
-            print "end: "
-            print end_
+            prog.update(count + 1, [])
+            count += 1
+            # print "start:"
+            # print start_
+            # print "end: "
+            # print end_
             start_preds += start_.tolist()
             end_preds += end_.tolist()
         return zip(start_preds, end_preds)
@@ -411,11 +426,11 @@ class SequencePredictor():
         # print predictions
         return predictions
     
-    def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
-        feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
-        predictions = sess.run(self.predictions, feed_dict=feed)
-        # print predictions
-        return predictions
+    # def predict_on_batch(self, sess, inputs_batch, start_index_labels, end_index_labels, mask_batch, sequence_batch, keywords_batch):
+    #     feed = self.create_feed_dict(inputs_batch = inputs_batch, start_labels_batch=start_index_labels, masks_batch=mask_batch, sequences = sequence_batch, keywords_batch = None, end_labels_batch = end_index_labels)
+    #     predictions = sess.run(self.predictions, feed_dict=feed)
+    #     # print predictions
+    #     return predictions
 
     def train_on_batch(self, sess, inputs_batch, start_labels_batch, end_labels_batch, mask_batch, sequence_batch, keywords_batch):
         #print start_labels_batch
@@ -498,13 +513,106 @@ def build_model(embedding_wrapper):
             else:
                 print "Testing..."
                 print 'Restoring the best model weights found on the dev set'
-                saver.restore(session, './data/'+ train_name + '/weights/summarizer.weights')
+                saver.restore(session, './32_400_1489806237.27/weights/summarizer.weights')
+                correct_preds, total_correct, total_preds, number_indices = 0., 0., 0., 0.
+                start_num_exact_correct, end_num_exact_correct = 0, 0
+                
+                #gold_standard_summaries = open(model.test_summary_data_file, 'r')
+                gold_indices = open(model.test_indices_data_file, 'r')
+                file_name = "TEST_RESULTS_" + train_name + str(time.time()) + ".txt"
+                preds_file_name = "TEST_PREDS_" + train_name + "preds_" + str(time.time()) + ".txt"
+                
+                gold_summaries_file = model.test_summary_data_file
+                bills_file = model.test_data_file 
+                gold_summ = open(gold_summaries_file, "r")
+                bills_file = open(bills_file,"r")
+                counter = 0
+                with open(file_name, 'w') as f:
+                    with open(preds_file_name, 'a') as f_preds:
+                        for start_preds, end_preds in model.test_output(session):
+                            # print "here"
+                            f_preds.write(str(start_preds) + '\n')
+                            f_preds.write(str(end_preds) + '\n')
+                            f_preds.write('\n')
 
-                # for start_preds, end_preds in model.test_output(session):
-                #     print "start preds: "
-                #     print start_preds
-                #     print "end preds: "
-                #     print end_preds
+                            a = np.asarray(start_preds)
+                            b = np.asarray(end_preds)
+
+                            a = np.exp(a - np.amax(a))
+                            a = a / np.sum(a)
+                            b = np.exp(b - np.amax(b))
+                            b = b / np.sum(b)
+
+                            a_idx = len(a) - 2
+                            b_idx = len(b) - 1
+
+                            b_max = b_idx
+                            total_max = a[a_idx] * b[b_max]
+
+                            for i in xrange(len(a)-3, -1, -1):
+                                if b[i + 1] > b[b_max]:
+                                    b_max = i + 1
+                                if a[i] * b[b_max] > total_max:
+                                    a_idx = i
+                                    b_idx = b_max
+
+                            gold = gold_indices.readline()
+                            gold = gold.split()
+                            gold_start = int(gold[0])
+                            gold_end = int(gold[1])
+                            start_index = int(a_idx)
+                            end_index = int(b_idx)
+
+                            x = range(start_index,end_index + 1)
+                            y = range(gold_start,gold_end + 1)
+                            xs = set(x)
+                            overlap = xs.intersection(y)
+                            overlap = len(overlap)
+                            if start_index == gold_start:
+                                start_num_exact_correct += 1
+                            if end_index == gold_end:
+                                end_num_exact_correct += 1
+
+                            gold_summary_text = gold_summ.readline()[:-1]
+                            bill_text = bills_file.readline()
+                            bill_text_list = bill_text.split()
+                            our_summary = ' '.join(bill_text_list[a_idx: b_idx + 1])
+
+                            gold_summary_text = normalize_answer(gold_summary_text)
+                            our_summary = normalize_answer(our_summary)
+
+                            f.write(our_summary + ' \n')
+                            f.write(gold_summary_text + ' \n')
+                            f.write('\n')
+                            
+                            number_indices += 1
+                            correct_preds += overlap
+                            total_preds += len(x)
+                            total_correct += len(y)
+
+                            counter += 1
+                            if counter % 1000 == 0:
+                                print counter
+
+                    start_exact_match = start_num_exact_correct/number_indices
+                    end_exact_match = end_num_exact_correct/number_indices
+                    p = correct_preds / total_preds if correct_preds > 0 else 0
+                    r = correct_preds / total_correct if correct_preds > 0 else 0
+                    f1 = 2 * p * r / (p + r) if correct_preds > 0 else 0
+
+                    gold_indices.close()
+
+                    f.write('Model results: \n')
+                    f.write('learning rate: %d \n' % self.lr)
+                    f.write('batch size: %d \n' % self.batch_size)
+                    f.write('hidden size: %d \n' % self.hidden_size)
+                    f.write('bill_length: %d \n' % self.bill_length)
+                    f.write('bill_file: %s \n' % self.train_data_file)
+                    f.write('dev_file: %s \n' % self.dev_data_file)
+                    f.write("Epoch start_exact_match/end_exact_match/P/R/F1: %.2f/%.2f/%.2f/%.2f/%.2f \n" % (start_exact_match, end_exact_match, p, r, f1))
+                    f.close()
+                    f_preds.close()
+                            
 
 
 
