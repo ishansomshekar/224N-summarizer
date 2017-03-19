@@ -19,7 +19,7 @@ def gen_rouge(file_name):
             while True:
                 gen = f.readline()
                 gold = f.readline()
-		f.readline()
+                f.readline()
                 if not gold: 
                     break
 
